@@ -2,7 +2,7 @@
 
 import type { ChangeEvent } from "react";
 import { startTransition, useState } from "react";
-import { ImageUp, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { ImageUp, Loader2, Plus, Save, Trash2, HelpCircle } from "lucide-react";
 
 import { saveBusinessProfile } from "@/app/actions";
 import { createPaymentInstruction } from "@/lib/invoices/defaults";
@@ -29,10 +29,7 @@ export function SettingsForm({ initialProfile, userId }: SettingsFormProps) {
 
   async function handleLogoUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     setUploading(true);
     setMessage(null);
@@ -45,9 +42,7 @@ export function SettingsForm({ initialProfile, userId }: SettingsFormProps) {
         .from("branding-assets")
         .upload(path, file, { upsert: true, contentType: file.type });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       const { data } = await supabase.storage
         .from("branding-assets")
@@ -55,9 +50,9 @@ export function SettingsForm({ initialProfile, userId }: SettingsFormProps) {
 
       updateField("logoPath", path);
       updateField("logoUrl", data?.signedUrl ?? null);
-      setMessage("Logo uploaded. Save settings to make the change permanent.");
+      setMessage("Logo uploaded successfully. Save settings to apply.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to upload the logo.");
+      setMessage(error instanceof Error ? error.message : "Upload failed.");
     }
 
     setUploading(false);
@@ -69,257 +64,272 @@ export function SettingsForm({ initialProfile, userId }: SettingsFormProps) {
 
     try {
       await saveBusinessProfile(profile);
-      setMessage("Settings saved.");
+      setMessage("Settings saved successfully.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save settings.");
+      setMessage(error instanceof Error ? error.message : "Failed to save settings.");
     }
 
     setSaving(false);
   }
 
   return (
-    <div className="space-y-6">
-      <section className="card-surface rounded-[2.4rem] p-6 sm:p-8">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--accent)]">Business profile</p>
-            <h1 className="display-font mt-4 text-4xl sm:text-5xl">Set the defaults every new invoice should inherit.</h1>
-          </div>
-          <button
-            className="btn btn-primary self-start"
-            disabled={saving}
-            onClick={() => startTransition(handleSave)}
-            type="button"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save settings
-          </button>
+    <div className="space-y-6 max-w-4xl">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="display-font text-2xl font-semibold">Settings</h1>
+        <button
+          className="btn btn-primary shadow-sm"
+          disabled={saving}
+          onClick={() => startTransition(handleSave)}
+          type="button"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+          Save
+        </button>
+      </div>
+
+      {message && (
+        <div className="rounded-md bg-[#e0f2fe] p-4 border border-[#bae6fd]">
+          <p className="text-sm font-medium text-[#006eb3]">{message}</p>
         </div>
+      )}
 
-        {message ? (
-          <p className="mt-5 whitespace-pre-line rounded-2xl bg-[rgba(20,87,255,0.08)] px-4 py-3 text-sm font-semibold text-[var(--accent)]">
-            {message}
-          </p>
-        ) : null}
-      </section>
-
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <section className="card-surface rounded-[2rem] p-6">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Identity</p>
-              <h2 className="mt-2 text-2xl font-black">Business details</h2>
-            </div>
-            <label className="btn btn-secondary cursor-pointer">
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
-              Upload logo
+      <div className="grid gap-6">
+        <section className="card-surface overflow-hidden">
+          <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
+            <h2 className="text-base font-semibold">Business profile</h2>
+            <label className="btn btn-secondary text-xs !py-1 !px-2 cursor-pointer shadow-sm">
+              {uploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ImageUp className="h-3 w-3 mr-1" />}
+              Upload Logo
               <input className="hidden" onChange={handleLogoUpload} type="file" accept="image/*" />
             </label>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label className="field-label">Company name</label>
-              <input className="field" value={profile.companyName} onChange={(event) => updateField("companyName", event.target.value)} />
-            </div>
-            <div>
-              <label className="field-label">Email</label>
-              <input className="field" type="email" value={profile.email} onChange={(event) => updateField("email", event.target.value)} />
-            </div>
-            <div>
-              <label className="field-label">Phone</label>
-              <input className="field" value={profile.phone} onChange={(event) => updateField("phone", event.target.value)} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="field-label">Address line 1</label>
-              <input className="field" value={profile.address1} onChange={(event) => updateField("address1", event.target.value)} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="field-label">Address line 2</label>
-              <input className="field" value={profile.address2} onChange={(event) => updateField("address2", event.target.value)} />
-            </div>
-            <div>
-              <label className="field-label">City</label>
-              <input className="field" value={profile.city} onChange={(event) => updateField("city", event.target.value)} />
-            </div>
-            <div>
-              <label className="field-label">Province / Territory</label>
-              <input className="field" value={profile.province} onChange={(event) => updateField("province", event.target.value)} />
-            </div>
-            <div>
-              <label className="field-label">Postal code</label>
-              <input className="field" value={profile.postalCode} onChange={(event) => updateField("postalCode", event.target.value)} />
-            </div>
-            <div>
-              <label className="field-label">Country</label>
-              <input className="field" value={profile.country} onChange={(event) => updateField("country", event.target.value)} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="field-label">Business number</label>
-              <input className="field" value={profile.businessNumber} onChange={(event) => updateField("businessNumber", event.target.value)} />
+          <div className="p-5">
+            {profile.logoUrl && (
+              <div className="mb-6 flex items-center gap-4">
+                <img src={profile.logoUrl} alt="Logo" className="w-16 h-16 rounded border border-[var(--border)] object-cover bg-white" />
+              </div>
+            )}
+            
+            <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="field-label">Company name</label>
+                <input className="field" value={profile.companyName} onChange={(event) => updateField("companyName", event.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Email</label>
+                <input className="field" type="email" value={profile.email} onChange={(event) => updateField("email", event.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Phone</label>
+                <input className="field" value={profile.phone} onChange={(event) => updateField("phone", event.target.value)} />
+              </div>
+              <div className="md:col-span-2 border-t border-[var(--border)] pt-4 mt-2">
+                <label className="field-label">Address line 1</label>
+                <input className="field" value={profile.address1} onChange={(event) => updateField("address1", event.target.value)} />
+              </div>
+              <div className="md:col-span-2">
+                <label className="field-label">Address line 2</label>
+                <input className="field" value={profile.address2} onChange={(event) => updateField("address2", event.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">City</label>
+                <input className="field" value={profile.city} onChange={(event) => updateField("city", event.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Province / Territory</label>
+                <input className="field" value={profile.province} onChange={(event) => updateField("province", event.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Postal code</label>
+                <input className="field" value={profile.postalCode} onChange={(event) => updateField("postalCode", event.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Country</label>
+                <input className="field" value={profile.country} onChange={(event) => updateField("country", event.target.value)} />
+              </div>
+              <div className="md:col-span-2 border-t border-[var(--border)] pt-4 mt-2">
+                <label className="field-label">Business number</label>
+                <input className="field" value={profile.businessNumber} onChange={(event) => updateField("businessNumber", event.target.value)} />
+                <p className="text-xs text-[var(--muted)] mt-1 flex items-center gap-1"><HelpCircle className="h-3 w-3"/> Displayed on all invoices if provided.</p>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="space-y-6">
-          <article className="card-surface rounded-[2rem] p-6">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Defaults</p>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <section className="card-surface overflow-hidden">
+          <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb]">
+            <h2 className="text-base font-semibold">Invoice defaults</h2>
+          </div>
+          <div className="p-5">
+            <div className="grid gap-4 md:grid-cols-2 mb-6">
               <div>
                 <label className="field-label">Invoice prefix</label>
-                <input className="field" maxLength={12} value={profile.invoicePrefix} onChange={(event) => updateField("invoicePrefix", event.target.value.toUpperCase())} />
+                <input className="field" maxLength={12} value={profile.invoicePrefix} onChange={(event) => updateField("invoicePrefix", event.target.value.toUpperCase())} placeholder="INV-" />
               </div>
               <div>
                 <label className="field-label">Default currency</label>
                 <select className="field" value={profile.defaultCurrency} onChange={(event) => updateField("defaultCurrency", event.target.value as BusinessProfileForm["defaultCurrency"])}>
-                  <option value="CAD">CAD</option>
-                  <option value="USD">USD</option>
+                  <option value="CAD">CAD (Canadian Dollar)</option>
+                  <option value="USD">USD (US Dollar)</option>
                 </select>
               </div>
               <div className="md:col-span-2">
                 <label className="field-label">Default notes</label>
-                <textarea className="field min-h-[140px]" value={profile.defaultNotes} onChange={(event) => updateField("defaultNotes", event.target.value)} />
+                <textarea className="field h-24 resize-y" value={profile.defaultNotes} onChange={(event) => updateField("defaultNotes", event.target.value)} placeholder="Terms of payment, thank you message..." />
               </div>
             </div>
-          </article>
+          </div>
+        </section>
 
-          <article className="card-surface rounded-[2rem] p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Tax registrations</p>
-                <h3 className="mt-2 text-xl font-black">Optional registration details</h3>
+        <section className="card-surface overflow-hidden">
+          <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
+            <h2 className="text-base font-semibold">Tax registrations</h2>
+            <button
+              className="btn btn-secondary text-xs !py-1 !px-2 shadow-sm"
+              onClick={() =>
+                updateField("taxRegistrations", [
+                  ...profile.taxRegistrations,
+                  { id: crypto.randomUUID(), label: "GST/HST", number: "" },
+                ])
+              }
+              type="button"
+            >
+              Add tax
+            </button>
+          </div>
+          <div className="p-5">
+            {profile.taxRegistrations.length === 0 ? (
+              <p className="text-sm text-[var(--muted)] text-center py-4">No tax registrations configured.</p>
+            ) : (
+              <div className="space-y-3">
+                {profile.taxRegistrations.map((registration, index) => (
+                  <div className="flex items-start gap-3" key={registration.id}>
+                    <div className="flex-1">
+                      <input
+                        className="field"
+                        placeholder="Label (e.g. GST)"
+                        value={registration.label}
+                        onChange={(event) => {
+                          const next = [...profile.taxRegistrations];
+                          next[index] = { ...registration, label: event.target.value };
+                          updateField("taxRegistrations", next);
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        className="field"
+                        placeholder="Registration Number"
+                        value={registration.number}
+                        onChange={(event) => {
+                          const next = [...profile.taxRegistrations];
+                          next[index] = { ...registration, number: event.target.value };
+                          updateField("taxRegistrations", next);
+                        }}
+                      />
+                    </div>
+                    <button
+                      className="btn btn-secondary !p-2 text-[var(--danger)] hover:bg-[#fed3d1] hover:border-[#fed3d1]"
+                      onClick={() =>
+                        updateField(
+                          "taxRegistrations",
+                          profile.taxRegistrations.filter((item) => item.id !== registration.id),
+                        )
+                      }
+                      type="button"
+                      title="Remove"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
-              <button
-                className="btn btn-secondary"
-                onClick={() =>
-                  updateField("taxRegistrations", [
-                    ...profile.taxRegistrations,
-                    { id: crypto.randomUUID(), label: "GST/HST", number: "" },
-                  ])
-                }
-                type="button"
-              >
-                <Plus className="h-4 w-4" />
-                Add
-              </button>
-            </div>
-            <div className="space-y-3">
-              {profile.taxRegistrations.map((registration, index) => (
-                <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]" key={registration.id}>
-                  <input
-                    className="field"
-                    placeholder="Label"
-                    value={registration.label}
-                    onChange={(event) => {
-                      const next = [...profile.taxRegistrations];
-                      next[index] = { ...registration, label: event.target.value };
-                      updateField("taxRegistrations", next);
-                    }}
-                  />
-                  <input
-                    className="field"
-                    placeholder="Registration number"
-                    value={registration.number}
-                    onChange={(event) => {
-                      const next = [...profile.taxRegistrations];
-                      next[index] = { ...registration, number: event.target.value };
-                      updateField("taxRegistrations", next);
-                    }}
-                  />
-                  <button
-                    className="btn btn-danger"
-                    onClick={() =>
-                      updateField(
-                        "taxRegistrations",
-                        profile.taxRegistrations.filter((item) => item.id !== registration.id),
-                      )
-                    }
-                    type="button"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </article>
+            )}
+          </div>
+        </section>
+
+        <section className="card-surface overflow-hidden">
+          <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
+            <h2 className="text-base font-semibold">Payment instructions</h2>
+            <button
+              className="btn btn-secondary text-xs !py-1 !px-2 shadow-sm"
+              onClick={() =>
+                updateField("defaultPaymentMethods", [
+                  ...profile.defaultPaymentMethods,
+                  createPaymentInstruction("Bank transfer"),
+                ])
+              }
+              type="button"
+            >
+              Add method
+            </button>
+          </div>
+          <div className="p-5">
+            {profile.defaultPaymentMethods.length === 0 ? (
+              <p className="text-sm text-[var(--muted)] text-center py-4">No payment methods configured.</p>
+            ) : (
+              <div className="space-y-4">
+                {profile.defaultPaymentMethods.map((method, index) => (
+                  <div className="p-4 rounded-md border border-[var(--border)] bg-[#fafbfb]" key={method.id}>
+                    <div className="flex items-start gap-4">
+                      <div className="flex-1 space-y-3">
+                        <input
+                          className="field"
+                          placeholder="Method label (e.g. e-Transfer)"
+                          value={method.label}
+                          onChange={(event) => {
+                            const next = [...profile.defaultPaymentMethods];
+                            next[index] = { ...method, label: event.target.value };
+                            updateField("defaultPaymentMethods", next);
+                          }}
+                        />
+                        <input
+                          className="field"
+                          placeholder="Instructions (e.g. Send to email@...)"
+                          value={method.details}
+                          onChange={(event) => {
+                            const next = [...profile.defaultPaymentMethods];
+                            next[index] = { ...method, details: event.target.value };
+                            updateField("defaultPaymentMethods", next);
+                          }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          className={`btn text-xs !py-1.5 ${method.preferred ? "btn-primary shadow-sm" : "btn-secondary shadow-sm"}`}
+                          onClick={() => {
+                            const next = profile.defaultPaymentMethods.map((item) => ({
+                              ...item,
+                              preferred: item.id === method.id,
+                            }));
+                            updateField("defaultPaymentMethods", next);
+                          }}
+                          type="button"
+                        >
+                          Preferred
+                        </button>
+                        <button
+                          className="btn btn-secondary text-xs !py-1.5 text-[var(--danger)] hover:bg-[#fed3d1] hover:border-[#fed3d1] shadow-sm"
+                          onClick={() =>
+                            updateField(
+                              "defaultPaymentMethods",
+                              profile.defaultPaymentMethods.filter((item) => item.id !== method.id),
+                            )
+                          }
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
       </div>
-
-      <section className="card-surface rounded-[2rem] p-6">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Payment instructions</p>
-            <h3 className="mt-2 text-xl font-black">Methods shown on new invoices</h3>
-          </div>
-          <button
-            className="btn btn-secondary"
-            onClick={() =>
-              updateField("defaultPaymentMethods", [
-                ...profile.defaultPaymentMethods,
-                createPaymentInstruction("Bank transfer"),
-              ])
-            }
-            type="button"
-          >
-            <Plus className="h-4 w-4" />
-            Add method
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {profile.defaultPaymentMethods.map((method, index) => (
-            <article className="rounded-[1.7rem] border border-[var(--border)] bg-white/80 p-4" key={method.id}>
-              <div className="grid gap-4 md:grid-cols-[1fr_2fr_auto_auto]">
-                <input
-                  className="field"
-                  placeholder="Method label"
-                  value={method.label}
-                  onChange={(event) => {
-                    const next = [...profile.defaultPaymentMethods];
-                    next[index] = { ...method, label: event.target.value };
-                    updateField("defaultPaymentMethods", next);
-                  }}
-                />
-                <input
-                  className="field"
-                  placeholder="Instructions"
-                  value={method.details}
-                  onChange={(event) => {
-                    const next = [...profile.defaultPaymentMethods];
-                    next[index] = { ...method, details: event.target.value };
-                    updateField("defaultPaymentMethods", next);
-                  }}
-                />
-                <button
-                  className={`btn ${method.preferred ? "btn-primary" : "btn-secondary"}`}
-                  onClick={() => {
-                    const next = profile.defaultPaymentMethods.map((item) => ({
-                      ...item,
-                      preferred: item.id === method.id,
-                    }));
-                    updateField("defaultPaymentMethods", next);
-                  }}
-                  type="button"
-                >
-                  Preferred
-                </button>
-                <button
-                  className="btn btn-danger"
-                  onClick={() =>
-                    updateField(
-                      "defaultPaymentMethods",
-                      profile.defaultPaymentMethods.filter((item) => item.id !== method.id),
-                    )
-                  }
-                  type="button"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

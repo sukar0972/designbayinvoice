@@ -2,7 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { ArrowRight, Loader2, Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 
@@ -36,47 +36,51 @@ export function LoginForm() {
       return;
     }
 
-    setMessage("Magic link sent. Open the email on this device and continue back into the app.");
+    setMessage("Magic link sent. Check your email to sign in.");
     setLoading(false);
   }
 
   return (
-    <form className="card-surface rounded-[2rem] p-7 sm:p-10" onSubmit={handleSubmit}>
-      <div className="mb-8">
-        <p className="mb-3 inline-flex rounded-full bg-[rgba(20,87,255,0.09)] px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-[var(--accent)]">
-          Secure access
-        </p>
-        <h1 className="display-font text-4xl text-[var(--foreground)] sm:text-5xl">
-          Sign in to DesignBayInvoice
-        </h1>
-        <p className="mt-3 max-w-lg text-sm leading-6 text-[var(--muted)] sm:text-base">
-          Enter your email and Supabase will send a one-time magic link. No password screens, no reset flow.
-        </p>
-      </div>
+    <form className="space-y-6" onSubmit={handleSubmit}>
+      {message && (
+        <div className="rounded-md bg-[#e0f2fe] p-4 border border-[#bae6fd]">
+          <p className="text-sm font-medium text-[#006eb3]">{message}</p>
+        </div>
+      )}
+      
+      {error && (
+        <div className="rounded-md bg-[#fed3d1] p-4 border border-[#fec5c3]">
+          <p className="text-sm font-medium text-[#8a1c08]">{error}</p>
+        </div>
+      )}
 
-      <label className="field-label" htmlFor="email">
-        Work Email
-      </label>
-      <div className="mb-4 flex items-center gap-3 rounded-[1.3rem] border border-[var(--border)] bg-white/80 px-4">
-        <Mail className="h-5 w-5 text-[var(--muted)]" />
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
+          Email address
+        </label>
         <input
           id="email"
-          className="h-14 w-full bg-transparent outline-none"
-          placeholder="hello@yourbusiness.ca"
-          required
+          name="email"
           type="email"
+          autoComplete="email"
+          required
+          className="field"
+          placeholder="you@example.com"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
         />
       </div>
 
-      <button className="btn btn-primary w-full" disabled={loading} type="submit">
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-        Send magic link
-      </button>
-
-      {message ? <p className="mt-4 text-sm font-medium text-[var(--success)]">{message}</p> : null}
-      {error ? <p className="mt-4 text-sm font-medium text-[var(--danger)]">{error}</p> : null}
+      <div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="btn btn-primary w-full justify-center"
+        >
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Continue with Email
+        </button>
+      </div>
     </form>
   );
 }
