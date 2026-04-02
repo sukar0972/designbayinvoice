@@ -1,0 +1,5 @@
+[build]
+command = "npm run build"
+
+[build.environment]
+NETLIFY_NEXT_SKEW_PROTECTION = "true"
