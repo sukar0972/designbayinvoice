@@ -4,12 +4,12 @@ import Link from "next/link";
 import { startTransition, useDeferredValue, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Calculator,
-  CircleDollarSign,
   Loader2,
   Plus,
-  Save,
   Trash2,
+  Eye,
+  Pencil,
+  FileText
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -104,7 +104,7 @@ export function InvoiceEditor({
       setMessage("Invoice saved.");
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save invoice.");
+      setMessage(error instanceof Error ? error.message : "Save failed.");
     }
 
     setSaving(false);
@@ -120,7 +120,7 @@ export function InvoiceEditor({
       router.push("/dashboard");
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to delete invoice.");
+      setMessage(error instanceof Error ? error.message : "Deletion failed.");
     }
   }
 
@@ -135,91 +135,83 @@ export function InvoiceEditor({
       setPaymentAmount("");
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to record payment.");
+      setMessage(error instanceof Error ? error.message : "Recording payment failed.");
     }
   }
 
   return (
-    <div className="space-y-5">
-      <section className="card-surface rounded-[2.4rem] p-5 sm:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-3">
-            <Link className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--muted)] transition hover:text-[var(--foreground)]" href="/dashboard">
-              <ArrowLeft className="h-4 w-4" />
-              Back to dashboard
-            </Link>
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--accent)]">Invoice workspace</p>
-              <h1 className="display-font mt-3 text-4xl sm:text-5xl">
-                {invoice.invoiceNumber || "New invoice draft"}
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                The company snapshot comes from settings. Existing invoices keep their own copy of the business profile.
-              </p>
+    <div className="space-y-6 max-w-[1400px] mx-auto relative pb-20 md:pb-0">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sticky top-0 bg-[var(--background)] z-30 py-4 border-b border-[var(--border)] -mt-4 px-1 md:-mt-8 md:pt-8 mb-6">
+        <div className="flex items-center gap-4">
+          <Link className="p-2 -ml-2 rounded-md hover:bg-[#ebeef0] text-[var(--muted)] transition-colors" href="/dashboard" title="Back to dashboard">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div>
+            <h1 className="display-font text-xl font-semibold">
+              {invoice.invoiceNumber || "New invoice draft"}
+            </h1>
+            <div className="flex items-center gap-2 mt-1 text-sm text-[var(--muted)]">
+              <span className="status-pill !py-0.5 !px-2 !text-[10px]" data-status={invoice.status}>
+                {STATUS_LABELS[invoice.status]}
+              </span>
+              <span>•</span>
+              <span>{formatCurrency(totals.balanceDue, invoice.currencyCode)} due</span>
             </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            {!isNew ? (
-              <Link className="btn btn-secondary" href={`/invoices/new?duplicate=${invoice.id}`}>
-                Duplicate
-              </Link>
-            ) : null}
-            <DownloadPdfButton className="btn btn-secondary" invoice={invoice} />
-            {!isNew ? (
-              <Link className="btn btn-secondary" href={`/invoices/${invoice.id}/print`} target="_blank">
-                Print view
-              </Link>
-            ) : null}
-            <button
-              className="btn btn-primary"
-              disabled={saving}
-              onClick={() => startTransition(handleSave)}
-              type="button"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {isNew ? "Create invoice" : "Save changes"}
-            </button>
           </div>
         </div>
 
-        {message ? (
-          <p className="mt-5 whitespace-pre-line rounded-2xl bg-[rgba(20,87,255,0.08)] px-4 py-3 text-sm font-semibold text-[var(--accent)]">
-            {message}
-          </p>
-        ) : null}
-      </section>
+        <div className="flex items-center gap-2">
+          {!isNew && (
+            <Link className="btn btn-secondary shadow-sm" href={`/invoices/${invoice.id}/print`} target="_blank">
+              Print
+            </Link>
+          )}
+          <DownloadPdfButton className="btn btn-secondary shadow-sm" invoice={invoice} />
+          <button
+            className="btn btn-primary shadow-sm"
+            disabled={saving}
+            onClick={() => startTransition(handleSave)}
+            type="button"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+            {isNew ? "Create draft" : "Save"}
+          </button>
+        </div>
+      </div>
 
-      <div className="print-shell-hidden card-surface flex rounded-full p-1 lg:hidden">
+      {message && (
+        <div className="rounded-md bg-[#e0f2fe] p-4 border border-[#bae6fd]">
+          <p className="text-sm font-medium text-[#006eb3]">{message}</p>
+        </div>
+      )}
+
+      {/* Mobile Tabs */}
+      <div className="print-shell-hidden md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--border)] p-3 flex gap-2 z-40 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <button
-          className={`flex-1 rounded-full px-4 py-3 text-sm font-bold ${mobileTab === "edit" ? "bg-[var(--foreground)] text-white" : ""}`}
+          className={`flex-1 flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors ${mobileTab === "edit" ? "bg-[var(--accent)] text-white" : "bg-[#f4f6f8] text-[var(--foreground)]"}`}
           onClick={() => setMobileTab("edit")}
           type="button"
         >
-          Edit
+          <Pencil className="h-4 w-4" /> Edit
         </button>
         <button
-          className={`flex-1 rounded-full px-4 py-3 text-sm font-bold ${mobileTab === "preview" ? "bg-[var(--foreground)] text-white" : ""}`}
+          className={`flex-1 flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors ${mobileTab === "preview" ? "bg-[var(--accent)] text-white" : "bg-[#f4f6f8] text-[var(--foreground)]"}`}
           onClick={() => setMobileTab("preview")}
           type="button"
         >
-          Preview
+          <Eye className="h-4 w-4" /> Preview
         </button>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(440px,0.9fr)]">
-        <section className={`space-y-5 ${mobileTab === "preview" ? "hidden lg:block" : ""}`}>
-          <article className="card-surface rounded-[2rem] p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Meta</p>
-                <h2 className="mt-2 text-2xl font-black">Invoice details</h2>
-              </div>
-              <span className="status-pill" data-status={invoice.status}>
-                {STATUS_LABELS[invoice.status]}
-              </span>
+      <div className="grid gap-6 md:grid-cols-[1fr_minmax(350px,400px)] xl:grid-cols-[1fr_minmax(450px,0.85fr)] items-start">
+        {/* Editor Column */}
+        <section className={`space-y-6 ${mobileTab === "preview" ? "hidden md:block" : ""}`}>
+          
+          <article className="card-surface overflow-hidden">
+            <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb]">
+              <h2 className="text-base font-semibold">Details</h2>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="p-5 grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="field-label">Status</label>
                 <select className="field" value={invoice.status} onChange={(event) => updateInvoiceField("status", event.target.value as InvoiceFormState["status"])}>
@@ -245,22 +237,19 @@ export function InvoiceEditor({
                 <label className="field-label">Due date</label>
                 <input className="field" type="date" value={invoice.dueDate} onChange={(event) => updateInvoiceField("dueDate", event.target.value)} />
               </div>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2 border-t border-[var(--border)] pt-4 mt-1">
                 <label className="field-label">Project reference</label>
-                <input className="field" value={invoice.projectReference} onChange={(event) => updateInvoiceField("projectReference", event.target.value)} />
+                <input className="field" value={invoice.projectReference} onChange={(event) => updateInvoiceField("projectReference", event.target.value)} placeholder="E.g. Website redesign" />
               </div>
             </div>
           </article>
 
-          <article className="card-surface rounded-[2rem] p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Client</p>
-                <h2 className="mt-2 text-2xl font-black">Bill to</h2>
-              </div>
+          <article className="card-surface overflow-hidden">
+            <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb]">
+              <h2 className="text-base font-semibold">Bill to</h2>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="md:col-span-2">
+            <div className="p-5 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
                 <label className="field-label">Client name</label>
                 <input className="field" value={invoice.billTo.name} onChange={(event) => updateInvoiceField("billTo", { ...invoice.billTo, name: event.target.value })} />
               </div>
@@ -272,11 +261,11 @@ export function InvoiceEditor({
                 <label className="field-label">Email</label>
                 <input className="field" value={invoice.billTo.email ?? ""} onChange={(event) => updateInvoiceField("billTo", { ...invoice.billTo, email: event.target.value })} />
               </div>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2 border-t border-[var(--border)] pt-4 mt-2">
                 <label className="field-label">Address line 1</label>
                 <input className="field" value={invoice.billTo.address1} onChange={(event) => updateInvoiceField("billTo", { ...invoice.billTo, address1: event.target.value })} />
               </div>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2">
                 <label className="field-label">Address line 2</label>
                 <input className="field" value={invoice.billTo.address2 ?? ""} onChange={(event) => updateInvoiceField("billTo", { ...invoice.billTo, address2: event.target.value })} />
               </div>
@@ -299,181 +288,160 @@ export function InvoiceEditor({
             </div>
           </article>
 
-          <article className="card-surface rounded-[2rem] p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Line items</p>
-                <h2 className="mt-2 text-2xl font-black">Scope and pricing</h2>
-              </div>
-              <button className="btn btn-secondary" onClick={() => updateInvoiceField("lineItems", [...invoice.lineItems, createLineItem()])} type="button">
-                <Plus className="h-4 w-4" />
-                Add line
-              </button>
+          <article className="card-surface overflow-hidden">
+            <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
+              <h2 className="text-base font-semibold">Line items</h2>
             </div>
-            <div className="space-y-4">
-              {invoice.lineItems.map((item, index) => (
-                <article className="rounded-[1.6rem] border border-[var(--border)] bg-white/75 p-4" key={item.id}>
-                  <div className="grid gap-4 md:grid-cols-[1.2fr_0.4fr_0.55fr_auto]">
-                    <input className="field" placeholder="Description" value={item.description} onChange={(event) => updateLineItem(index, { description: event.target.value })} />
-                    <input className="field" min="0" placeholder="Qty" step="0.25" type="number" value={item.quantity} onChange={(event) => updateLineItem(index, { quantity: Number(event.target.value) })} />
-                    <input className="field" min="0" placeholder="Rate" step="0.01" type="number" value={item.unitPrice} onChange={(event) => updateLineItem(index, { unitPrice: Number(event.target.value) })} />
-                    <button className="btn btn-danger" onClick={() => updateInvoiceField("lineItems", invoice.lineItems.filter((lineItem) => lineItem.id !== item.id))} type="button">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </article>
-              ))}
+            <div className="p-0">
+              {invoice.lineItems.length === 0 ? (
+                 <div className="p-8 text-center border-b border-[var(--border)]">
+                   <p className="text-sm text-[var(--muted)]">No line items added.</p>
+                 </div>
+              ) : (
+                <div className="divide-y divide-[var(--border)] border-b border-[var(--border)]">
+                  {invoice.lineItems.map((item, index) => (
+                    <div className="p-5 bg-white" key={item.id}>
+                      <div className="flex flex-col gap-3">
+                        <input className="field" placeholder="Description" value={item.description} onChange={(event) => updateLineItem(index, { description: event.target.value })} />
+                        <div className="flex gap-3">
+                          <div className="flex-1">
+                            <input className="field" min="0" placeholder="Qty" step="0.25" type="number" value={item.quantity} onChange={(event) => updateLineItem(index, { quantity: Number(event.target.value) })} />
+                          </div>
+                          <div className="flex-1">
+                            <input className="field" min="0" placeholder="Rate" step="0.01" type="number" value={item.unitPrice} onChange={(event) => updateLineItem(index, { unitPrice: Number(event.target.value) })} />
+                          </div>
+                          <button className="btn btn-secondary !p-2 text-[var(--danger)] hover:bg-[#fed3d1] hover:border-[#fed3d1]" onClick={() => updateInvoiceField("lineItems", invoice.lineItems.filter((lineItem) => lineItem.id !== item.id))} type="button" title="Remove">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="p-4 bg-[#fafbfb]">
+                <button className="btn btn-secondary text-xs shadow-sm" onClick={() => updateInvoiceField("lineItems", [...invoice.lineItems, createLineItem()])} type="button">
+                  <Plus className="h-3 w-3 mr-1.5" />
+                  Add item
+                </button>
+              </div>
             </div>
           </article>
 
-          <article className="card-surface rounded-[2rem] p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Tax lines</p>
-                <h2 className="mt-2 text-2xl font-black">Manual Canadian tax rows</h2>
-              </div>
-              <button className="btn btn-secondary" onClick={() => updateInvoiceField("taxLines", [...invoice.taxLines, createTaxLine()])} type="button">
-                <Plus className="h-4 w-4" />
+          <article className="card-surface overflow-hidden">
+            <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
+              <h2 className="text-base font-semibold">Taxes</h2>
+              <button className="btn btn-secondary text-xs !py-1 !px-2 shadow-sm" onClick={() => updateInvoiceField("taxLines", [...invoice.taxLines, createTaxLine()])} type="button">
                 Add tax
               </button>
             </div>
-            <div className="space-y-4">
-              {invoice.taxLines.map((taxLine, index) => (
-                <div className="grid gap-4 md:grid-cols-[1fr_0.45fr_auto]" key={taxLine.id}>
-                  <input className="field" placeholder="Label" value={taxLine.label} onChange={(event) => updateTaxLine(index, { label: event.target.value })} />
-                  <input className="field" min="0" placeholder="Rate %" step="0.01" type="number" value={taxLine.rate} onChange={(event) => updateTaxLine(index, { rate: Number(event.target.value) })} />
-                  <button className="btn btn-danger" onClick={() => updateInvoiceField("taxLines", invoice.taxLines.filter((line) => line.id !== taxLine.id))} type="button">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+            <div className="p-5">
+              {invoice.taxLines.length === 0 ? (
+                <p className="text-sm text-[var(--muted)] text-center py-4">No taxes applied.</p>
+              ) : (
+                <div className="space-y-3">
+                  {invoice.taxLines.map((taxLine, index) => (
+                    <div className="flex items-start gap-3" key={taxLine.id}>
+                      <div className="flex-1">
+                        <input className="field" placeholder="Label (e.g. HST)" value={taxLine.label} onChange={(event) => updateTaxLine(index, { label: event.target.value })} />
+                      </div>
+                      <div className="flex-[0.5]">
+                        <input className="field" min="0" placeholder="Rate %" step="0.01" type="number" value={taxLine.rate} onChange={(event) => updateTaxLine(index, { rate: Number(event.target.value) })} />
+                      </div>
+                      <button className="btn btn-secondary !p-2 text-[var(--danger)] hover:bg-[#fed3d1] hover:border-[#fed3d1]" onClick={() => updateInvoiceField("taxLines", invoice.taxLines.filter((line) => line.id !== taxLine.id))} type="button">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           </article>
 
-          <article className="card-surface rounded-[2rem] p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Payments</p>
-                <h2 className="mt-2 text-2xl font-black">Instructions and tracking</h2>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {invoice.paymentMethods.map((method, index) => (
-                <article className="rounded-[1.6rem] border border-[var(--border)] bg-white/75 p-4" key={method.id}>
-                  <div className="grid gap-4 md:grid-cols-[1fr_1.8fr_auto_auto]">
-                    <input className="field" placeholder="Method label" value={method.label} onChange={(event) => updatePaymentMethod(index, { label: event.target.value })} />
-                    <input className="field" placeholder="Payment instructions" value={method.details} onChange={(event) => updatePaymentMethod(index, { details: event.target.value })} />
-                    <button className={`btn ${method.preferred ? "btn-primary" : "btn-secondary"}`} onClick={() => updateInvoiceField("paymentMethods", invoice.paymentMethods.map((item) => ({ ...item, preferred: item.id === method.id })))} type="button">
-                      Preferred
-                    </button>
-                    <button className="btn btn-danger" onClick={() => updateInvoiceField("paymentMethods", invoice.paymentMethods.filter((item) => item.id !== method.id))} type="button">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </article>
-              ))}
-              <button className="btn btn-secondary" onClick={() => updateInvoiceField("paymentMethods", [...invoice.paymentMethods, createPaymentInstruction("Manual payment method")])} type="button">
-                <Plus className="h-4 w-4" />
-                Add payment method
+          <article className="card-surface overflow-hidden">
+            <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
+              <h2 className="text-base font-semibold">Payments</h2>
+              <button className="btn btn-secondary text-xs !py-1 !px-2 shadow-sm" onClick={() => updateInvoiceField("paymentMethods", [...invoice.paymentMethods, createPaymentInstruction("Manual payment")])} type="button">
+                Add method
               </button>
             </div>
-
-            {!isNew && invoice.id ? (
-              <div className="mt-6 rounded-[1.6rem] bg-[rgba(20,87,255,0.06)] p-4">
-                <p className="text-sm font-black uppercase tracking-[0.22em] text-[var(--accent)]">Record payment</p>
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                  <input className="field" min="0" placeholder="Amount" step="0.01" type="number" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} />
-                  <button className="btn btn-primary sm:min-w-[170px]" onClick={() => startTransition(handlePaymentRecord)} type="button">
-                    <CircleDollarSign className="h-4 w-4" />
-                    Apply payment
-                  </button>
+            <div className="p-5">
+              {invoice.paymentMethods.length === 0 ? (
+                <p className="text-sm text-[var(--muted)] text-center py-4 mb-4">No payment methods added.</p>
+              ) : (
+                <div className="space-y-4 mb-6">
+                  {invoice.paymentMethods.map((method, index) => (
+                    <div className="p-4 rounded-md border border-[var(--border)] bg-[#fafbfb]" key={method.id}>
+                      <div className="flex items-start gap-4">
+                        <div className="flex-1 space-y-3">
+                          <input className="field bg-white" placeholder="Method label" value={method.label} onChange={(event) => updatePaymentMethod(index, { label: event.target.value })} />
+                          <input className="field bg-white" placeholder="Instructions" value={method.details} onChange={(event) => updatePaymentMethod(index, { details: event.target.value })} />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <button className={`btn text-xs !py-1.5 ${method.preferred ? "btn-primary shadow-sm" : "btn-secondary shadow-sm"}`} onClick={() => updateInvoiceField("paymentMethods", invoice.paymentMethods.map((item) => ({ ...item, preferred: item.id === method.id })))} type="button">
+                            Preferred
+                          </button>
+                          <button className="btn btn-secondary text-xs !py-1.5 text-[var(--danger)] hover:bg-[#fed3d1] hover:border-[#fed3d1] shadow-sm" onClick={() => updateInvoiceField("paymentMethods", invoice.paymentMethods.filter((item) => item.id !== method.id))} type="button">
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ) : null}
-          </article>
+              )}
 
-          <article className="card-surface rounded-[2rem] p-6">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Company snapshot</p>
-                <h2 className="mt-2 text-2xl font-black">Pulled from settings</h2>
-              </div>
-              <Link className="btn btn-secondary" href="/settings">
-                Edit defaults
-              </Link>
-            </div>
-
-            <div className="rounded-[1.7rem] border border-[var(--border)] bg-white/80 p-4 text-sm leading-7 text-[var(--muted)]">
-              <p className="font-black text-[var(--foreground)]">{invoice.companySnapshot.companyName || "Add your business profile in settings"}</p>
-              <p>{[invoice.companySnapshot.address1, invoice.companySnapshot.address2].filter(Boolean).join(", ")}</p>
-              <p>
-                {[invoice.companySnapshot.city, invoice.companySnapshot.province, invoice.companySnapshot.postalCode]
-                  .filter(Boolean)
-                  .join(", ")}
-              </p>
-              <p>{invoice.companySnapshot.email}</p>
+              {!isNew && invoice.id ? (
+                <div className="border-t border-[var(--border)] pt-5 mt-2">
+                  <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Record payment</p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input className="field" min="0" placeholder="Amount received" step="0.01" type="number" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} />
+                    <button className="btn btn-primary shadow-sm whitespace-nowrap" onClick={() => startTransition(handlePaymentRecord)} type="button">
+                      Record payment
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </article>
 
-          <article className="card-surface rounded-[2rem] p-6">
-            <label className="field-label">Invoice notes</label>
-            <textarea className="field min-h-[180px]" value={invoice.notes} onChange={(event) => updateInvoiceField("notes", event.target.value)} />
+          <article className="card-surface overflow-hidden">
+            <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb]">
+              <h2 className="text-base font-semibold">Notes</h2>
+            </div>
+            <div className="p-5">
+              <textarea className="field min-h-[120px]" placeholder="Additional notes..." value={invoice.notes} onChange={(event) => updateInvoiceField("notes", event.target.value)} />
+            </div>
           </article>
 
           {!isNew && canDeleteInvoice(invoice.status) ? (
-            <button className="btn btn-danger w-full justify-center" onClick={handleDeleteDraft} type="button">
-              <Trash2 className="h-4 w-4" />
+            <button className="btn btn-danger w-full shadow-sm" onClick={handleDeleteDraft} type="button">
+              <Trash2 className="h-4 w-4 mr-2" />
               Delete draft invoice
             </button>
           ) : null}
         </section>
 
-        <section className={`space-y-5 ${mobileTab === "edit" ? "hidden lg:block" : ""}`}>
-          <article className="card-surface rounded-[2rem] p-5">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Preview</p>
-                <h2 className="mt-2 text-2xl font-black">Live invoice output</h2>
+        {/* Preview Column */}
+        <section className={`space-y-6 ${mobileTab === "edit" ? "hidden md:block" : ""}`}>
+          <div className="sticky top-28">
+            <article className="card-surface overflow-hidden mb-6 hidden md:block">
+              <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
+                <h2 className="text-base font-semibold flex items-center gap-2"><FileText className="h-4 w-4" /> Live preview</h2>
+                <Link href={`/invoices/${invoice.id}/print`} target="_blank" className="text-xs text-[var(--accent)] hover:underline font-medium">Open in new tab</Link>
               </div>
-              <div className="rounded-full bg-[rgba(255,127,50,0.12)] px-4 py-2 text-sm font-black text-[var(--accent-strong)]">
-                {formatCurrency(totals.balanceDue, invoice.currencyCode)} due
+              <div className="p-0 bg-[#ebeef0] flex justify-center py-8 px-4 overflow-hidden h-[calc(100vh-280px)] overflow-y-auto">
+                <div className="scale-[0.65] lg:scale-[0.75] origin-top md:origin-top w-[860px] pointer-events-none select-none">
+                  <InvoiceDocument invoice={deferredInvoice} />
+                </div>
               </div>
-            </div>
-            <InvoiceDocument invoice={deferredInvoice} />
-          </article>
+            </article>
 
-          <article className="card-surface rounded-[2rem] p-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(20,87,255,0.1)] text-[var(--accent)]">
-                <Calculator className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Totals</p>
-                <h3 className="text-xl font-black">Calculated live</h3>
-              </div>
+            {/* Mobile Preview View */}
+            <div className="md:hidden">
+              <InvoiceDocument invoice={deferredInvoice} />
             </div>
-            <div className="mt-5 space-y-3 rounded-[1.6rem] bg-white/80 p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[var(--muted)]">Subtotal</span>
-                <span className="font-semibold">{formatCurrency(totals.subtotalAmount, invoice.currencyCode)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[var(--muted)]">Tax</span>
-                <span className="font-semibold">{formatCurrency(totals.taxAmount, invoice.currencyCode)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[var(--muted)]">Amount paid</span>
-                <span className="font-semibold">{formatCurrency(invoice.amountPaid, invoice.currencyCode)}</span>
-              </div>
-              <div className="flex items-center justify-between border-t border-black/10 pt-3 text-base font-black">
-                <span>Balance due</span>
-                <span>{formatCurrency(totals.balanceDue, invoice.currencyCode)}</span>
-              </div>
-            </div>
-            <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
-              New invoices inherit the profile for {profile.companyName || "your business"} and freeze it at save time so older invoices do not drift when settings change.
-            </p>
-          </article>
+          </div>
         </section>
       </div>
     </div>

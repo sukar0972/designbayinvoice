@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { ArrowRight, Copy, FilePlus2, Trash2 } from "lucide-react";
+import { ArrowRight, Copy, FilePlus2, Trash2, Search, MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { deleteDraftInvoice } from "@/app/actions";
@@ -26,10 +26,12 @@ function StatCard({
   copy: string;
 }) {
   return (
-    <article className="card-surface rounded-[1.9rem] p-5">
-      <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">{label}</p>
-      <p className="display-font mt-4 text-4xl">{value}</p>
-      <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{copy}</p>
+    <article className="card-surface p-5">
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium text-[var(--muted)]">{label}</p>
+        <p className="display-font text-3xl font-semibold text-[var(--foreground)]">{value}</p>
+      </div>
+      <p className="mt-4 text-sm text-[var(--muted)]">{copy}</p>
     </article>
   );
 }
@@ -56,152 +58,137 @@ export function DashboardClient({
 
   return (
     <div className="space-y-6">
-      <section className="card-surface rounded-[2.4rem] p-6 sm:p-8">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-[var(--accent)]">Workspace overview</p>
-            <h1 className="display-font mt-4 text-4xl sm:text-5xl">Invoice flow without the accounting-suite baggage.</h1>
-            <p className="mt-4 text-sm leading-7 text-[var(--muted)] sm:text-base">
-              Start from settings, generate invoices, and keep the output polished enough to send directly to clients.
-            </p>
-          </div>
-          <Link className="btn btn-primary self-start px-6 py-4" href="/invoices/new">
-            <FilePlus2 className="h-4 w-4" />
-            Create invoice
-          </Link>
-        </div>
-      </section>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="display-font text-2xl font-semibold">Overview</h1>
+        <Link className="btn btn-primary shadow-sm" href="/invoices/new">
+          <FilePlus2 className="h-4 w-4 mr-1.5" />
+          Create invoice
+        </Link>
+      </div>
 
-      <section className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
-          copy="Current unpaid or partially paid balances across all invoices."
+          copy="Total unpaid balance"
           label="Outstanding"
           value={formatCurrency(stats.outstanding, defaultCurrency)}
         />
         <StatCard
-          copy="Total payments recorded against invoices in this workspace."
+          copy="Total payments received"
           label="Collected"
           value={formatCurrency(stats.paid, defaultCurrency)}
         />
         <StatCard
-          copy="Invoices past the due date and still waiting on payment."
+          copy="Invoices past due"
           label="Overdue"
           value={String(stats.overdue)}
         />
-      </section>
+      </div>
 
-      <section className="card-surface rounded-[2.4rem] p-6 sm:p-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-[var(--muted)]">Invoices</p>
-            <h2 className="mt-2 text-2xl font-black">Recent activity</h2>
-          </div>
+      <div className="card-surface overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--border)] flex justify-between items-center bg-[#fafbfb]">
+          <h2 className="text-base font-semibold">Recent invoices</h2>
         </div>
 
-        {message ? (
-          <p className="mb-4 rounded-2xl bg-[rgba(20,87,255,0.08)] px-4 py-3 text-sm font-semibold text-[var(--accent)]">
-            {message}
-          </p>
-        ) : null}
+        {message && (
+          <div className="px-5 py-3 bg-[#e0f2fe] border-b border-[#bae6fd]">
+            <p className="text-sm font-medium text-[#006eb3]">{message}</p>
+          </div>
+        )}
 
         {invoices.length === 0 ? (
-          <div className="rounded-[1.8rem] border border-dashed border-[var(--border)] bg-white/70 px-6 py-10 text-center">
-            <p className="text-lg font-black">No invoices yet</p>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Create your first invoice to test the full mobile-to-PDF workflow.
+          <div className="p-12 text-center flex flex-col items-center justify-center">
+            <div className="h-12 w-12 rounded-full bg-[#f4f6f8] flex items-center justify-center mb-4 text-[var(--muted)]">
+              <FilePlus2 className="h-6 w-6" />
+            </div>
+            <p className="text-base font-medium text-[var(--foreground)]">No invoices found</p>
+            <p className="mt-1 text-sm text-[var(--muted)] max-w-sm">
+              Create your first invoice to track your payments and view it as a PDF.
             </p>
-            <Link className="btn btn-primary mt-6" href="/invoices/new">
+            <Link className="btn btn-secondary mt-6 shadow-sm" href="/invoices/new">
               Create invoice
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
-            {invoices.map((invoice) => (
-              <article
-                className="rounded-[1.9rem] border border-[var(--border)] bg-white/80 p-5"
-                key={invoice.id}
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-lg font-black">{invoice.invoiceNumber}</p>
-                      <span className="status-pill" data-status={invoice.status}>
-                        {STATUS_LABELS[invoice.status]}
-                      </span>
-                      {isOverdue(invoice) ? (
-                        <span className="rounded-full bg-[rgba(199,75,75,0.12)] px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-[var(--danger)]">
-                          Overdue
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-[var(--muted)] bg-[#fafbfb]">
+                  <th className="px-5 py-3 font-medium">Invoice</th>
+                  <th className="px-5 py-3 font-medium">Client</th>
+                  <th className="px-5 py-3 font-medium">Amount</th>
+                  <th className="px-5 py-3 font-medium">Status</th>
+                  <th className="px-5 py-3 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {invoices.map((invoice) => (
+                  <tr key={invoice.id} className="hover:bg-[#fafbfb] transition-colors group">
+                    <td className="px-5 py-4 align-middle">
+                      <div className="flex flex-col">
+                        <Link href={`/invoices/${invoice.id}`} className="font-semibold text-[var(--foreground)] hover:underline">
+                          {invoice.invoiceNumber}
+                        </Link>
+                        <span className="text-xs text-[var(--muted)] mt-1">Due {invoice.dueDate}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 align-middle">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-[var(--foreground)]">{invoice.billTo.name || "Unknown"}</span>
+                        <span className="text-xs text-[var(--muted)] mt-1">{invoice.projectReference || "No project"}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 align-middle font-medium text-[var(--foreground)]">
+                      {formatCurrency(invoice.totalAmount, invoice.currencyCode)}
+                    </td>
+                    <td className="px-5 py-4 align-middle">
+                      <div className="flex items-center gap-2">
+                        <span className="status-pill" data-status={invoice.status}>
+                          {STATUS_LABELS[invoice.status]}
                         </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-3 text-sm font-semibold text-[var(--foreground)]">
-                      {invoice.billTo.name || "Unnamed client"}
-                    </p>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      {invoice.projectReference || "No project reference"} · Due {invoice.dueDate}
-                    </p>
-                  </div>
-
-                  <div className="grid gap-2 text-sm sm:grid-cols-3 sm:gap-6">
-                    <div>
-                      <p className="font-black uppercase tracking-[0.18em] text-[var(--muted)]">Total</p>
-                      <p className="mt-1 font-semibold">{formatCurrency(invoice.totalAmount, invoice.currencyCode)}</p>
-                    </div>
-                    <div>
-                      <p className="font-black uppercase tracking-[0.18em] text-[var(--muted)]">Paid</p>
-                      <p className="mt-1 font-semibold">{formatCurrency(invoice.amountPaid, invoice.currencyCode)}</p>
-                    </div>
-                    <div>
-                      <p className="font-black uppercase tracking-[0.18em] text-[var(--muted)]">Balance</p>
-                      <p className="mt-1 font-semibold">{formatCurrency(invoice.balanceDue, invoice.currencyCode)}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                  <Link className="btn btn-secondary" href={`/invoices/${invoice.id}`}>
-                    Open invoice
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                  <Link className="btn btn-secondary" href={`/invoices/new?duplicate=${invoice.id}`}>
-                    <Copy className="h-4 w-4" />
-                    Duplicate
-                  </Link>
-                  <DownloadPdfButton className="btn btn-secondary" invoice={invoice} />
-                  {invoice.status === "draft" ? (
-                    <button
-                      className="btn btn-danger"
-                      disabled={pending}
-                      onClick={() => {
-                        const confirmed = window.confirm("Delete this draft invoice?");
-                        if (!confirmed) {
-                          return;
-                        }
-
-                        startTransition(async () => {
-                          try {
-                            await deleteDraftInvoice(invoice.id);
-                            setMessage(`Deleted ${invoice.invoiceNumber}.`);
-                            router.refresh();
-                          } catch (error) {
-                            setMessage(
-                              error instanceof Error ? error.message : "Unable to delete this invoice.",
-                            );
-                          }
-                        });
-                      }}
-                      type="button"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete draft
-                    </button>
-                  ) : null}
-                </div>
-              </article>
-            ))}
+                        {isOverdue(invoice) && (
+                          <span className="text-xs font-medium text-[#d82c0d] bg-[#fed3d1] px-2 py-0.5 rounded-full">
+                            Overdue
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 align-middle text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
+                        <DownloadPdfButton className="btn btn-secondary !p-1.5 shadow-sm" invoice={invoice} />
+                        <Link className="btn btn-secondary !p-1.5 shadow-sm" href={`/invoices/new?duplicate=${invoice.id}`} title="Duplicate">
+                          <Copy className="h-4 w-4 text-[var(--muted)]" />
+                        </Link>
+                        {invoice.status === "draft" && (
+                          <button
+                            className="btn btn-secondary !p-1.5 shadow-sm text-[#d82c0d] hover:bg-[#fed3d1] hover:border-[#fed3d1]"
+                            disabled={pending}
+                            onClick={() => {
+                              if (window.confirm("Delete draft invoice?")) {
+                                startTransition(async () => {
+                                  try {
+                                    await deleteDraftInvoice(invoice.id);
+                                    setMessage(`Deleted ${invoice.invoiceNumber}`);
+                                    router.refresh();
+                                  } catch (error) {
+                                    setMessage(error instanceof Error ? error.message : "Error deleting draft");
+                                  }
+                                });
+                              }
+                            }}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }
