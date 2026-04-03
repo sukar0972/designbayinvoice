@@ -184,6 +184,11 @@ select {
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
   html,
   body {
     background: white;
@@ -191,5 +196,15 @@ select {
 
   .print-shell-hidden {
     display: none !important;
+  }
+
+  .invoice-document {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .invoice-print-block {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
   }
 }

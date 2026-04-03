@@ -1,14 +1,32 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { ZodError } from "zod";
+import { ZodError, z } from "zod";
 
 import { requireUser } from "@/lib/auth";
-import { computeInvoiceTotals, canDeleteInvoice, canTransitionStatus, deriveInvoiceStatus } from "@/lib/invoices/calculations";
+import {
+  acceptOrganizationInviteForCurrentUser,
+  requireOrganizationContext,
+  serializeBusinessProfile,
+  serializeInvoice,
+} from "@/lib/data";
+import {
+  canDeleteInvoice,
+  canTransitionStatus,
+  computeInvoiceTotals,
+  deriveInvoiceStatus,
+} from "@/lib/invoices/calculations";
 import { formatZodError } from "@/lib/invoices/errors";
 import { businessProfileSchema, invoiceSchema } from "@/lib/invoices/validation";
-import { ensureBusinessProfileForUser, serializeBusinessProfile, serializeInvoice } from "@/lib/data";
-import type { BusinessProfileForm, InvoiceFormState, InvoiceStatus } from "@/types/domain";
+import { normalizeEmail } from "@/lib/organizations";
+import type {
+  BusinessProfileForm,
+  InvoiceFormState,
+  InviteAcceptanceResult,
+  InvoiceStatus,
+} from "@/types/domain";
+
+const inviteEmailSchema = z.string().trim().email();
 
 async function reserveInvoiceNumber(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
@@ -31,6 +49,12 @@ async function reserveInvoiceNumber(
   };
 }
 
+function assertOwner(role: string) {
+  if (role !== "owner") {
+    throw new Error("Only organization owners can manage members.");
+  }
+}
+
 export async function saveBusinessProfile(input: BusinessProfileForm) {
   let profile: BusinessProfileForm;
 
@@ -44,13 +68,12 @@ export async function saveBusinessProfile(input: BusinessProfileForm) {
     throw error;
   }
 
-  const { supabase, user } = await requireUser();
-  await ensureBusinessProfileForUser(supabase, user);
+  const { supabase, organization } = await requireOrganizationContext();
 
   const { error } = await supabase
     .from("business_profiles")
     .update(serializeBusinessProfile(profile))
-    .eq("user_id", user.id);
+    .eq("organization_id", organization.id);
 
   if (error) {
     throw new Error(error.message);
@@ -59,10 +82,6 @@ export async function saveBusinessProfile(input: BusinessProfileForm) {
   revalidatePath("/settings");
   revalidatePath("/dashboard");
   revalidatePath("/invoices/new");
-
-  return {
-    ok: true,
-  };
 }
 
 export async function createInvoiceDraft(input: InvoiceFormState) {
@@ -78,7 +97,7 @@ export async function createInvoiceDraft(input: InvoiceFormState) {
     throw error;
   }
 
-  const { supabase, user } = await requireUser();
+  const { supabase, organization } = await requireOrganizationContext();
 
   const reservation = await reserveInvoiceNumber(supabase);
   const status = deriveInvoiceStatus(
@@ -88,7 +107,7 @@ export async function createInvoiceDraft(input: InvoiceFormState) {
   );
 
   const payload = {
-    user_id: user.id,
+    organization_id: organization.id,
     invoice_number: reservation.invoiceNumber,
     sequence_number: reservation.sequenceNumber,
     ...serializeInvoice({
@@ -130,11 +149,12 @@ export async function updateInvoice(input: InvoiceFormState & { id: string }) {
     throw error;
   }
 
-  const { supabase } = await requireUser();
+  const { supabase, organization } = await requireOrganizationContext();
 
   const { data: existing, error: existingError } = await supabase
     .from("invoices")
     .select("status, issued_at, paid_at")
+    .eq("organization_id", organization.id)
     .eq("id", invoice.id)
     .single<{ status: InvoiceStatus; issued_at: string | null; paid_at: string | null }>();
 
@@ -154,11 +174,9 @@ export async function updateInvoice(input: InvoiceFormState & { id: string }) {
       }),
       issued_at:
         existing.issued_at ?? (status === "draft" ? null : new Date().toISOString()),
-      paid_at:
-        status === "paid"
-          ? existing.paid_at ?? new Date().toISOString()
-          : null,
+      paid_at: status === "paid" ? existing.paid_at ?? new Date().toISOString() : null,
     })
+    .eq("organization_id", organization.id)
     .eq("id", invoice.id);
 
   if (error) {
@@ -168,17 +186,14 @@ export async function updateInvoice(input: InvoiceFormState & { id: string }) {
   revalidatePath("/dashboard");
   revalidatePath(`/invoices/${invoice.id}`);
   revalidatePath(`/invoices/${invoice.id}/print`);
-
-  return {
-    id: invoice.id,
-  };
 }
 
 export async function duplicateInvoice(id: string) {
-  const { supabase, user } = await requireUser();
+  const { supabase, organization } = await requireOrganizationContext();
   const { data: source, error: sourceError } = await supabase
     .from("invoices")
     .select("*")
+    .eq("organization_id", organization.id)
     .eq("id", id)
     .single();
 
@@ -190,7 +205,7 @@ export async function duplicateInvoice(id: string) {
   const cloned = {
     ...source,
     id: undefined,
-    user_id: user.id,
+    organization_id: organization.id,
     invoice_number: reservation.invoiceNumber,
     sequence_number: reservation.sequenceNumber,
     status: "draft",
@@ -220,10 +235,11 @@ export async function duplicateInvoice(id: string) {
 }
 
 export async function transitionInvoiceStatus(id: string, nextStatus: InvoiceStatus) {
-  const { supabase } = await requireUser();
+  const { supabase, organization } = await requireOrganizationContext();
   const { data: existing, error: existingError } = await supabase
     .from("invoices")
     .select("status, amount_paid, total_amount")
+    .eq("organization_id", organization.id)
     .eq("id", id)
     .single<{ status: InvoiceStatus; amount_paid: string | number; total_amount: string | number }>();
 
@@ -239,10 +255,10 @@ export async function transitionInvoiceStatus(id: string, nextStatus: InvoiceSta
     .from("invoices")
     .update({
       status: deriveInvoiceStatus(nextStatus, Number(existing.amount_paid), Number(existing.total_amount)),
-      issued_at:
-        nextStatus === "draft" ? null : new Date().toISOString(),
+      issued_at: nextStatus === "draft" ? null : new Date().toISOString(),
       paid_at: nextStatus === "paid" ? new Date().toISOString() : null,
     })
+    .eq("organization_id", organization.id)
     .eq("id", id);
 
   if (error) {
@@ -254,10 +270,11 @@ export async function transitionInvoiceStatus(id: string, nextStatus: InvoiceSta
 }
 
 export async function recordPayment(id: string, amount: number) {
-  const { supabase } = await requireUser();
+  const { supabase, organization } = await requireOrganizationContext();
   const { data: existing, error: existingError } = await supabase
     .from("invoices")
     .select("amount_paid, total_amount")
+    .eq("organization_id", organization.id)
     .eq("id", id)
     .single<{ amount_paid: string | number; total_amount: string | number }>();
 
@@ -277,6 +294,7 @@ export async function recordPayment(id: string, amount: number) {
       status,
       paid_at: status === "paid" ? new Date().toISOString() : null,
     })
+    .eq("organization_id", organization.id)
     .eq("id", id);
 
   if (error) {
@@ -288,10 +306,11 @@ export async function recordPayment(id: string, amount: number) {
 }
 
 export async function deleteDraftInvoice(id: string) {
-  const { supabase } = await requireUser();
+  const { supabase, organization } = await requireOrganizationContext();
   const { data, error: fetchError } = await supabase
     .from("invoices")
     .select("status")
+    .eq("organization_id", organization.id)
     .eq("id", id)
     .single<{ status: InvoiceStatus }>();
 
@@ -303,11 +322,159 @@ export async function deleteDraftInvoice(id: string) {
     throw new Error("Only draft invoices can be deleted.");
   }
 
-  const { error } = await supabase.from("invoices").delete().eq("id", id);
+  const { error } = await supabase
+    .from("invoices")
+    .delete()
+    .eq("organization_id", organization.id)
+    .eq("id", id);
 
   if (error) {
     throw new Error(error.message);
   }
 
   revalidatePath("/dashboard");
+}
+
+export async function inviteOrganizationMember(email: string) {
+  const normalizedEmail = normalizeEmail(inviteEmailSchema.parse(email));
+  const { supabase, organization, membership, user } = await requireOrganizationContext();
+  assertOwner(membership.role);
+
+  const { data: activeMember, error: memberLookupError } = await supabase
+    .from("organization_members")
+    .select("id")
+    .eq("organization_id", organization.id)
+    .eq("email", normalizedEmail)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (memberLookupError) {
+    throw new Error(memberLookupError.message);
+  }
+
+  if (activeMember) {
+    throw new Error("That email already belongs to this organization.");
+  }
+
+  const { data: existingInvite, error: inviteLookupError } = await supabase
+    .from("organization_invites")
+    .select("*")
+    .eq("organization_id", organization.id)
+    .eq("email", normalizedEmail)
+    .eq("status", "pending")
+    .maybeSingle<{
+      id: string;
+      token: string;
+      expires_at: string;
+      status: "pending";
+    }>();
+
+  if (inviteLookupError) {
+    throw new Error(inviteLookupError.message);
+  }
+
+  if (existingInvite) {
+    if (new Date(existingInvite.expires_at).getTime() > Date.now()) {
+      return {
+        id: existingInvite.id,
+        email: normalizedEmail,
+        token: existingInvite.token,
+        expiresAt: existingInvite.expires_at,
+      };
+    }
+
+    await supabase
+      .from("organization_invites")
+      .update({ status: "expired" })
+      .eq("id", existingInvite.id);
+  }
+
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("organization_invites")
+    .insert({
+      organization_id: organization.id,
+      invited_by_user_id: user.id,
+      email: normalizedEmail,
+      expires_at: expiresAt,
+      status: "pending",
+    })
+    .select("id, token, expires_at")
+    .single<{ id: string; token: string; expires_at: string }>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/settings");
+
+  return {
+    id: data.id,
+    email: normalizedEmail,
+    token: data.token,
+    expiresAt: data.expires_at,
+  };
+}
+
+export async function revokeOrganizationInvite(inviteId: string) {
+  const { supabase, organization, membership } = await requireOrganizationContext();
+  assertOwner(membership.role);
+
+  const { error } = await supabase
+    .from("organization_invites")
+    .update({ status: "revoked" })
+    .eq("organization_id", organization.id)
+    .eq("id", inviteId)
+    .eq("status", "pending");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/settings");
+}
+
+export async function removeOrganizationMember(memberId: string) {
+  const { supabase, organization, membership } = await requireOrganizationContext();
+  assertOwner(membership.role);
+
+  const { data: target, error: fetchError } = await supabase
+    .from("organization_members")
+    .select("id, role")
+    .eq("organization_id", organization.id)
+    .eq("id", memberId)
+    .single<{ id: string; role: "owner" | "member" }>();
+
+  if (fetchError) {
+    throw new Error(fetchError.message);
+  }
+
+  if (target.role === "owner") {
+    throw new Error("The organization owner cannot be removed.");
+  }
+
+  const { error } = await supabase
+    .from("organization_members")
+    .update({ status: "removed" })
+    .eq("organization_id", organization.id)
+    .eq("id", memberId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/settings");
+}
+
+export async function acceptOrganizationInvite(
+  token: string,
+): Promise<InviteAcceptanceResult> {
+  const result = await acceptOrganizationInviteForCurrentUser(token);
+
+  if (result.ok) {
+    revalidatePath("/dashboard");
+    revalidatePath("/settings");
+  }
+
+  return result;
 }

@@ -19,17 +19,15 @@ import { InvoiceDocument } from "@/components/invoices/invoice-document";
 import { canDeleteInvoice, computeInvoiceTotals, formatCurrency } from "@/lib/invoices/calculations";
 import { createLineItem, createPaymentInstruction, createTaxLine } from "@/lib/invoices/defaults";
 import { STATUS_LABELS } from "@/lib/invoices/constants";
-import type { BusinessProfileForm, InvoiceFormState, InvoiceRecord, LineItem, PaymentInstruction, TaxLine } from "@/types/domain";
+import type { InvoiceFormState, InvoiceRecord, LineItem, PaymentInstruction, TaxLine } from "@/types/domain";
 
 type InvoiceEditorProps = {
   initialInvoice: InvoiceFormState | InvoiceRecord;
-  profile: BusinessProfileForm;
   isNew: boolean;
 };
 
 export function InvoiceEditor({
   initialInvoice,
-  profile,
   isNew,
 }: InvoiceEditorProps) {
   const router = useRouter();

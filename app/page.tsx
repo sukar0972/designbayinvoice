@@ -118,7 +118,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-12 text-center max-w-2xl mx-auto">
             <h2 className="text-2xl font-semibold text-[var(--foreground)]">Built for focused operations</h2>
-            <p className="mt-4 text-[var(--muted)]">Everything you need to send a bill, nothing you don't.</p>
+            <p className="mt-4 text-[var(--muted)]">Everything you need to send a bill, nothing you don&apos;t.</p>
           </div>
           
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">

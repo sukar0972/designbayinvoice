@@ -16,7 +16,7 @@ export default async function PrintInvoicePage({
 
   return (
     <main className="min-h-screen bg-white px-4 py-8 print:px-0 print:py-0">
-      <div className="mx-auto max-w-[980px] print:max-w-none">
+      <div className="mx-auto max-w-[190mm] print:max-w-none">
         <InvoiceDocument invoice={invoice} printable />
       </div>
     </main>

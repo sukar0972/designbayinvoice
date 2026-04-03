@@ -35,18 +35,24 @@
 - `netlify.toml`: Netlify build/plugin config
 
 ## Data Model
+- `organizations`
+  - one shared workspace per business
+- `organization_members`
+  - active users attached to a shared organization
+- `organization_invites`
+  - pending/accepted/revoked member invites
 - `business_profiles`
-  - one row per authenticated user
+  - one row per organization
   - stores company info, invoice prefix, default currency, payment methods, notes, logo path
 - `invoices`
-  - owned by `user_id`
+  - owned by `organization_id`
   - stores snapshotted company data, bill-to data, line items, tax lines, totals, and status
 - Storage bucket: `branding-assets`
 
 ## Auth And Security
 - Supabase magic-link auth.
 - Protected routes use server-side auth checks.
-- RLS policies restrict all business and invoice data to `auth.uid()`.
+- Shared data is organization-scoped through memberships, not direct `auth.uid()` ownership.
 - `SUPABASE_SECRET_KEY` is not required by the current app and should stay server-only if ever used.
 
 ## Deployment Notes

@@ -34,33 +34,73 @@ export function DownloadPdfButton({
     try {
       await new Promise((resolve) => window.setTimeout(resolve, 80));
 
-      const canvas = await html2canvas(containerRef.current, {
-        scale: 2,
-        backgroundColor: "#ffffff",
-        useCORS: true,
-        logging: false,
-        width: containerRef.current.scrollWidth,
-        height: containerRef.current.scrollHeight,
-      });
-
-      const imageData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imageProperties = pdf.getImageProperties(imageData);
-      const imageHeight = (imageProperties.height * pdfWidth) / imageProperties.width;
+      const pageMargin = 12;
+      const contentWidth = pdfWidth - pageMargin * 2;
+      const contentHeight = pdfHeight - pageMargin * 2;
 
-      let heightLeft = imageHeight;
-      let position = 0;
+      const blocks = Array.from(
+        containerRef.current.querySelectorAll<HTMLElement>("[data-pdf-block]"),
+      );
 
-      pdf.addImage(imageData, "PNG", 0, position, pdfWidth, imageHeight);
-      heightLeft -= pdfHeight;
+      if (blocks.length === 0) {
+        throw new Error("No printable invoice sections were found.");
+      }
 
-      while (heightLeft > 0) {
-        position = heightLeft - imageHeight;
-        pdf.addPage();
-        pdf.addImage(imageData, "PNG", 0, position, pdfWidth, imageHeight);
-        heightLeft -= pdfHeight;
+      let cursorY = pageMargin;
+
+      for (let index = 0; index < blocks.length; index += 1) {
+        const block = blocks[index];
+        const canvas = await html2canvas(block, {
+          scale: 2, // Higher scale for better text resolution
+          backgroundColor: "#ffffff",
+          useCORS: true,
+          logging: false,
+          windowWidth: 1024, // Force desktop breakpoints
+        });
+
+        const imageData = canvas.toDataURL("image/png");
+        const imageProperties = pdf.getImageProperties(imageData);
+        const blockHeight = (imageProperties.height * contentWidth) / imageProperties.width;
+
+        if (blockHeight <= contentHeight) {
+          if (cursorY > pageMargin && cursorY + blockHeight > pdfHeight - pageMargin) {
+            pdf.addPage();
+            cursorY = pageMargin;
+          }
+
+          pdf.addImage(imageData, "PNG", pageMargin, cursorY, contentWidth, blockHeight);
+          cursorY += blockHeight;
+          continue;
+        }
+
+        if (cursorY > pageMargin) {
+          pdf.addPage();
+          cursorY = pageMargin;
+        }
+
+        let consumedHeight = 0;
+
+        while (consumedHeight < blockHeight) {
+          pdf.addImage(
+            imageData,
+            "PNG",
+            pageMargin,
+            pageMargin - consumedHeight,
+            contentWidth,
+            blockHeight,
+          );
+          consumedHeight += contentHeight;
+
+          if (consumedHeight < blockHeight) {
+            pdf.addPage();
+          }
+        }
+
+        const remainder = blockHeight % contentHeight;
+        cursorY = remainder === 0 ? pdfHeight - pageMargin : pageMargin + remainder;
       }
 
       const safeNumber = (invoice.invoiceNumber || "invoice").replace(/[^a-z0-9_-]/gi, "_");
@@ -91,7 +131,10 @@ export function DownloadPdfButton({
         </button>
         {error ? <p className="text-sm font-medium text-[var(--danger)]">{error}</p> : null}
       </div>
-      <div className="pointer-events-none fixed left-[-300vw] top-0 z-[-1] w-[210mm] bg-white" ref={containerRef}>
+      <div
+        className="pointer-events-none fixed left-[-300vw] top-0 z-[-1] w-[800px] bg-white"
+        ref={containerRef}
+      >
         <InvoiceDocument invoice={invoice} printable />
       </div>
     </>
