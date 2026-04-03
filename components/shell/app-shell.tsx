@@ -7,6 +7,7 @@ import { FileText, LayoutDashboard, Settings2, Menu, X } from "lucide-react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 
 type AppShellProps = {
+  companyName?: string;
   email?: string;
   children: React.ReactNode;
 };
@@ -29,10 +30,11 @@ const links = [
   },
 ];
 
-export function AppShell({ email, children }: AppShellProps) {
+export function AppShell({ companyName, email, children }: AppShellProps) {
   const [mobileMenuPathname, setMobileMenuPathname] = useState<string | null>(null);
   const pathname = usePathname();
   const isMobileMenuOpen = mobileMenuPathname === pathname;
+  const resolvedCompanyName = companyName?.trim() || "Your Company";
 
   return (
     <div className="min-h-screen bg-[var(--background)] flex flex-col md:flex-row">
@@ -42,7 +44,10 @@ export function AppShell({ email, children }: AppShellProps) {
           <div className="flex h-8 w-8 items-center justify-center rounded bg-[var(--accent)] text-white shadow-sm">
             <span className="font-bold text-lg leading-none">D</span>
           </div>
-          <span className="font-semibold text-[var(--foreground)] tracking-tight">DesignBayInvoice</span>
+          <div className="min-w-0">
+            <p className="truncate font-semibold tracking-tight text-[var(--foreground)]">DesignBayInvoice</p>
+            <p className="truncate text-xs text-[var(--muted)]">{resolvedCompanyName}</p>
+          </div>
         </div>
         <button
           onClick={() =>
@@ -74,7 +79,10 @@ export function AppShell({ email, children }: AppShellProps) {
           <div className="flex h-8 w-8 items-center justify-center rounded bg-[var(--accent)] text-white shadow-sm">
             <span className="font-bold text-lg leading-none">D</span>
           </div>
-          <span className="font-semibold text-[var(--foreground)] tracking-tight">DesignBayInvoice</span>
+          <div className="min-w-0">
+            <p className="truncate font-semibold tracking-tight text-[var(--foreground)]">DesignBayInvoice</p>
+            <p className="truncate text-xs text-[var(--muted)]">{resolvedCompanyName}</p>
+          </div>
         </div>
 
         <nav className="p-3 flex-1 space-y-1 overflow-y-auto mt-4 md:mt-0">

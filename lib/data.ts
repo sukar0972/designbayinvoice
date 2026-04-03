@@ -5,7 +5,11 @@ import { requireUser } from "@/lib/auth";
 import { normalizeEmail, isInviteExpired } from "@/lib/organizations";
 import { computeInvoiceTotals } from "@/lib/invoices/calculations";
 import { EMPTY_COMPANY_PROFILE } from "@/lib/invoices/constants";
-import { createDuplicateInvoice, createEmptyInvoice } from "@/lib/invoices/defaults";
+import {
+  createDuplicateInvoice,
+  createEmptyInvoice,
+  normalizePaymentInstruction,
+} from "@/lib/invoices/defaults";
 import type {
   BillTo,
   BusinessProfileForm,
@@ -110,6 +114,12 @@ function asNumber(value: string | number | null | undefined) {
   return Number(value ?? 0);
 }
 
+function asPaymentInstructions(value: unknown) {
+  return asArray<Partial<PaymentInstruction> & Pick<PaymentInstruction, "id" | "label">>(value).map(
+    (method) => normalizePaymentInstruction(method),
+  );
+}
+
 function mapOrganizationRow(row: OrganizationRow): Organization {
   return {
     id: row.id,
@@ -185,7 +195,7 @@ function mapBusinessProfileRow(
     invoicePrefix: row.invoice_prefix,
     nextInvoiceSequence: row.next_invoice_sequence,
     defaultCurrency: row.default_currency,
-    defaultPaymentMethods: asArray<PaymentInstruction>(row.default_payment_methods),
+    defaultPaymentMethods: asPaymentInstructions(row.default_payment_methods),
     defaultNotes: row.default_notes ?? "",
     logoPath: row.logo_path,
     logoUrl,
@@ -216,7 +226,7 @@ async function mapInvoiceRow(
     },
     lineItems: asArray<InvoiceRecord["lineItems"][number]>(row.line_items),
     taxLines: asArray<TaxLine>(row.tax_lines),
-    paymentMethods: asArray<PaymentInstruction>(row.payment_methods),
+    paymentMethods: asPaymentInstructions(row.payment_methods),
     notes: row.notes ?? "",
     amountPaid: asNumber(row.amount_paid),
     subtotalAmount: asNumber(row.subtotal_amount),

@@ -5,6 +5,8 @@ import {
   canDeleteInvoice,
   canTransitionStatus,
   computeInvoiceTotals,
+  computePaymentMethodProcessingFee,
+  computePaymentMethodTotal,
   deriveInvoiceStatus,
   formatCurrency,
 } from "@/lib/invoices/calculations";
@@ -49,6 +51,26 @@ describe("invoice calculations", () => {
   it("formats CAD and USD distinctly", () => {
     expect(formatCurrency(1200, "CAD")).toMatch(/\$1,200\.00/);
     expect(formatCurrency(1200, "USD")).toContain("$1,200.00");
+  });
+
+  it("computes a payment-method processing fee on the remaining balance", () => {
+    const invoice = createEmptyInvoice(EMPTY_COMPANY_PROFILE("billing@example.com"));
+    invoice.lineItems = [{ id: "1", description: "Build", quantity: 1, unitPrice: 1000 }];
+    invoice.taxLines = [{ id: "tax", label: "HST", rate: 13 }];
+    invoice.amountPaid = 130;
+
+    const cardMethod = {
+      id: "card",
+      label: "Credit Card",
+      details: "",
+      preferred: false,
+      processingFeeEnabled: true,
+      processingFeePercent: 2.9,
+      processingFeeFlatAmount: 0.3,
+    };
+
+    expect(computePaymentMethodProcessingFee(invoice, cardMethod)).toBe(29.3);
+    expect(computePaymentMethodTotal(invoice, cardMethod)).toBe(1029.3);
   });
 
   it("duplicates invoices as a new unsaved draft", () => {

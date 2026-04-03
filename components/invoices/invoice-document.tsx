@@ -1,5 +1,11 @@
 import type { InvoiceFormState, InvoiceRecord } from "@/types/domain";
-import { computeInvoiceTotals, formatCurrency, formatLongDate } from "@/lib/invoices/calculations";
+import {
+  computeInvoiceTotals,
+  computePaymentMethodProcessingFee,
+  computePaymentMethodTotal,
+  formatCurrency,
+  formatLongDate,
+} from "@/lib/invoices/calculations";
 import { STATUS_LABELS } from "@/lib/invoices/constants";
 
 type InvoiceDocumentProps = {
@@ -12,6 +18,9 @@ export function InvoiceDocument({
   printable = false,
 }: InvoiceDocumentProps) {
   const totals = computeInvoiceTotals(invoice);
+  const feeAwarePaymentMethod =
+    invoice.paymentMethods.find((method) => method.preferred && method.processingFeeEnabled) ??
+    invoice.paymentMethods.find((method) => method.processingFeeEnabled);
 
   return (
     <article
@@ -161,6 +170,19 @@ export function InvoiceDocument({
                     <div key={method.id} className="text-sm text-[#4b5563]">
                       <p className="font-bold text-[#111827] mb-0.5">{method.label}</p>
                       {method.details && <p className="whitespace-pre-wrap leading-snug text-[13px]">{method.details}</p>}
+                      {method.processingFeeEnabled ? (
+                        <div className="mt-2 space-y-1 text-[12px] leading-snug text-[#6b7280]">
+                          <p>
+                            Card processing fee: {method.processingFeePercent ?? 0}%
+                            {(method.processingFeeFlatAmount ?? 0) > 0
+                              ? ` + ${formatCurrency(method.processingFeeFlatAmount ?? 0, invoice.currencyCode)}`
+                              : ""}
+                          </p>
+                          <p>
+                            Pay by card: {formatCurrency(computePaymentMethodTotal(invoice, method), invoice.currencyCode)}
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -226,6 +248,17 @@ export function InvoiceDocument({
                 {formatCurrency(totals.balanceDue, invoice.currencyCode)}
               </span>
             </div>
+            {feeAwarePaymentMethod ? (
+              <div className="mt-3 rounded border border-[#e5e7eb] bg-[#fafafa] px-3 py-2 text-[12px] text-[#4b5563]">
+                <p className="font-semibold text-[#111827]">{feeAwarePaymentMethod.label} total</p>
+                <p className="mt-1">
+                  Includes {formatCurrency(computePaymentMethodProcessingFee(invoice, feeAwarePaymentMethod), invoice.currencyCode)} in processing fees.
+                </p>
+                <p className="mt-1 font-semibold text-[#111827]">
+                  {formatCurrency(computePaymentMethodTotal(invoice, feeAwarePaymentMethod), invoice.currencyCode)}
+                </p>
+              </div>
+            ) : null}
           </div>
           
         </section>

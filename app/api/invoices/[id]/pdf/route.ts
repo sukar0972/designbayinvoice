@@ -75,18 +75,34 @@ export async function GET(
       timeout: 30_000,
     });
 
-    await page.emulateMediaType("screen");
+    await page.waitForSelector(".invoice-document", {
+      timeout: 10_000,
+    });
+
+    await page.emulateMediaType("print");
+
+    await page.evaluate(async () => {
+      if ("fonts" in document) {
+        await document.fonts.ready;
+      }
+
+      await Promise.all(
+        Array.from(document.images, (image) => {
+          if (image.complete) {
+            return Promise.resolve();
+          }
+
+          return new Promise<void>((resolve) => {
+            image.addEventListener("load", () => resolve(), { once: true });
+            image.addEventListener("error", () => resolve(), { once: true });
+          });
+        }),
+      );
+    });
 
     const pdfBuffer = await page.pdf({
-      format: "A4",
       printBackground: true,
-      preferCSSPageSize: false,
-      margin: {
-        top: "10mm",
-        right: "10mm",
-        bottom: "10mm",
-        left: "10mm",
-      },
+      preferCSSPageSize: true,
     });
 
     const safeNumber = (invoice.invoice_number || "invoice").replace(/[^a-z0-9_-]/gi, "_");

@@ -269,6 +269,48 @@ export async function transitionInvoiceStatus(id: string, nextStatus: InvoiceSta
   revalidatePath(`/invoices/${id}`);
 }
 
+export async function toggleInvoicePaidState(id: string, nextStatus: "issued" | "paid") {
+  const { supabase, organization } = await requireOrganizationContext();
+  const { data: existing, error: existingError } = await supabase
+    .from("invoices")
+    .select("status, total_amount, issued_at")
+    .eq("organization_id", organization.id)
+    .eq("id", id)
+    .single<{ status: InvoiceStatus; total_amount: string | number; issued_at: string | null }>();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  if (!["issued", "paid"].includes(existing.status)) {
+    throw new Error("Only issued or paid invoices can be toggled from the dashboard.");
+  }
+
+  const totalAmount = Number(existing.total_amount);
+  const nextAmountPaid = nextStatus === "paid" ? totalAmount : 0;
+  const nextBalanceDue = nextStatus === "paid" ? 0 : totalAmount;
+
+  const { error } = await supabase
+    .from("invoices")
+    .update({
+      status: nextStatus,
+      amount_paid: nextAmountPaid,
+      balance_due: nextBalanceDue,
+      issued_at: existing.issued_at ?? new Date().toISOString(),
+      paid_at: nextStatus === "paid" ? new Date().toISOString() : null,
+    })
+    .eq("organization_id", organization.id)
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/invoices/${id}`);
+  revalidatePath(`/invoices/${id}/print`);
+}
+
 export async function recordPayment(id: string, amount: number) {
   const { supabase, organization } = await requireOrganizationContext();
   const { data: existing, error: existingError } = await supabase

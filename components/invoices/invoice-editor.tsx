@@ -18,6 +18,7 @@ import { DownloadPdfButton } from "@/components/invoices/download-pdf-button";
 import { InvoiceDocument } from "@/components/invoices/invoice-document";
 import { canDeleteInvoice, computeInvoiceTotals, formatCurrency } from "@/lib/invoices/calculations";
 import { createLineItem, createPaymentInstruction, createTaxLine } from "@/lib/invoices/defaults";
+import { buildGuestPrintHref, buildGuestPrintStorageKey } from "@/lib/invoices/guest-print";
 import { STATUS_LABELS } from "@/lib/invoices/constants";
 import type { InvoiceFormState, InvoiceRecord, LineItem, PaymentInstruction, TaxLine } from "@/types/domain";
 
@@ -85,6 +86,19 @@ export function InvoiceEditor({
         paymentMethods: nextMethods,
       };
     });
+  }
+
+  function prepareGuestPrint(autoPrint = false) {
+    if (!guestMode || typeof window === "undefined") {
+      return undefined;
+    }
+
+    const draftKey = crypto.randomUUID();
+    window.localStorage.setItem(
+      buildGuestPrintStorageKey(draftKey),
+      JSON.stringify(invoice),
+    );
+    return buildGuestPrintHref(draftKey, autoPrint);
   }
 
   async function handleSave() {
@@ -168,13 +182,27 @@ export function InvoiceEditor({
         </div>
 
         <div className="flex items-center gap-2">
-          {!guestMode && !isNew && (
+          {guestMode ? (
+            <button
+              className="btn btn-secondary shadow-sm"
+              onClick={() => {
+                const href = prepareGuestPrint(true);
+                if (href) {
+                  window.open(href, "_blank", "noopener,noreferrer");
+                }
+              }}
+              type="button"
+            >
+              Print
+            </button>
+          ) : !isNew ? (
             <Link className="btn btn-secondary shadow-sm" href={`/invoices/${invoice.id}/print`} target="_blank">
               Print
             </Link>
-          )}
+          ) : null}
           <DownloadPdfButton
             className="btn btn-secondary shadow-sm"
+            getPrintHref={guestMode ? () => prepareGuestPrint(true) : undefined}
             invoice={invoice}
             pdfHref={invoice.id ? `/api/invoices/${invoice.id}/pdf` : undefined}
             printHref={invoice.id ? `/invoices/${invoice.id}/print?autoprint=1` : undefined}
@@ -316,7 +344,12 @@ export function InvoiceEditor({
 
           <article className="card-surface overflow-hidden">
             <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
-              <h2 className="text-base font-semibold">Line items</h2>
+              <div>
+                <h2 className="text-base font-semibold">Line items</h2>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  Add what you charged, how many units or hours, and the rate for each line.
+                </p>
+              </div>
             </div>
             <div className="p-0">
               {invoice.lineItems.length === 0 ? (
@@ -328,13 +361,18 @@ export function InvoiceEditor({
                   {invoice.lineItems.map((item, index) => (
                     <div className="p-5 bg-white" key={item.id}>
                       <div className="flex flex-col gap-3">
-                        <input className="field" placeholder="Description" value={item.description} onChange={(event) => updateLineItem(index, { description: event.target.value })} />
+                        <div>
+                          <label className="field-label">Description</label>
+                          <input className="field" placeholder="What did you bill for?" value={item.description} onChange={(event) => updateLineItem(index, { description: event.target.value })} />
+                        </div>
                         <div className="flex gap-3">
                           <div className="flex-1">
-                            <input className="field" min="0" placeholder="Qty" step="0.25" type="number" value={item.quantity} onChange={(event) => updateLineItem(index, { quantity: Number(event.target.value) })} />
+                            <label className="field-label">Quantity</label>
+                            <input className="field" min="0" placeholder="Hours or units" step="0.25" type="number" value={item.quantity} onChange={(event) => updateLineItem(index, { quantity: Number(event.target.value) })} />
                           </div>
                           <div className="flex-1">
-                            <input className="field" min="0" placeholder="Rate" step="0.01" type="number" value={item.unitPrice} onChange={(event) => updateLineItem(index, { unitPrice: Number(event.target.value) })} />
+                            <label className="field-label">Rate</label>
+                            <input className="field" min="0" placeholder="Price per unit" step="0.01" type="number" value={item.unitPrice} onChange={(event) => updateLineItem(index, { unitPrice: Number(event.target.value) })} />
                           </div>
                           <button className="btn btn-secondary !p-2 text-[var(--danger)] hover:bg-[#fed3d1] hover:border-[#fed3d1]" onClick={() => updateInvoiceField("lineItems", invoice.lineItems.filter((lineItem) => lineItem.id !== item.id))} type="button" title="Remove">
                             <Trash2 className="h-4 w-4" />
@@ -402,6 +440,54 @@ export function InvoiceEditor({
                         <div className="flex-1 space-y-3">
                           <input className="field bg-white" placeholder="Method label" value={method.label} onChange={(event) => updatePaymentMethod(index, { label: event.target.value })} />
                           <input className="field bg-white" placeholder="Instructions" value={method.details} onChange={(event) => updatePaymentMethod(index, { details: event.target.value })} />
+                          <label className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
+                            <input
+                              checked={Boolean(method.processingFeeEnabled)}
+                              onChange={(event) =>
+                                updatePaymentMethod(index, {
+                                  processingFeeEnabled: event.target.checked,
+                                })
+                              }
+                              type="checkbox"
+                            />
+                            Add a processing fee on top for this payment method
+                          </label>
+                          {method.processingFeeEnabled ? (
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div>
+                                <label className="field-label">Fee percent</label>
+                                <input
+                                  className="field bg-white"
+                                  min="0"
+                                  placeholder="2.9"
+                                  step="0.01"
+                                  type="number"
+                                  value={method.processingFeePercent ?? 0}
+                                  onChange={(event) =>
+                                    updatePaymentMethod(index, {
+                                      processingFeePercent: Number(event.target.value),
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div>
+                                <label className="field-label">Flat fee</label>
+                                <input
+                                  className="field bg-white"
+                                  min="0"
+                                  placeholder="0.30"
+                                  step="0.01"
+                                  type="number"
+                                  value={method.processingFeeFlatAmount ?? 0}
+                                  onChange={(event) =>
+                                    updatePaymentMethod(index, {
+                                      processingFeeFlatAmount: Number(event.target.value),
+                                    })
+                                  }
+                                />
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                         <div className="flex flex-col gap-2">
                           <button className={`btn text-xs !py-1.5 ${method.preferred ? "btn-primary shadow-sm" : "btn-secondary shadow-sm"}`} onClick={() => updateInvoiceField("paymentMethods", invoice.paymentMethods.map((item) => ({ ...item, preferred: item.id === method.id })))} type="button">

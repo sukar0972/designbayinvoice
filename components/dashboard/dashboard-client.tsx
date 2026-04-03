@@ -5,7 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { ArrowRight, Copy, FilePlus2, Trash2, Search, MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { deleteDraftInvoice } from "@/app/actions";
+import { deleteDraftInvoice, toggleInvoicePaidState } from "@/app/actions";
 import { DownloadPdfButton } from "@/components/invoices/download-pdf-button";
 import { formatCurrency, isOverdue } from "@/lib/invoices/calculations";
 import { STATUS_LABELS } from "@/lib/invoices/constants";
@@ -55,6 +55,36 @@ export function DashboardClient({
       overdue,
     };
   }, [invoices]);
+
+  function renderPaymentToggle(invoice: InvoiceRecord) {
+    if (invoice.status !== "issued" && invoice.status !== "paid") {
+      return null;
+    }
+
+    const nextStatus = invoice.status === "issued" ? "paid" : "issued";
+    const buttonLabel = invoice.status === "issued" ? "Mark paid" : "Mark issued";
+
+    return (
+      <button
+        className="btn btn-secondary !py-1 !px-2 text-xs shadow-sm"
+        disabled={pending}
+        onClick={() => {
+          startTransition(async () => {
+            try {
+              await toggleInvoicePaidState(invoice.id, nextStatus);
+              setMessage(`${invoice.invoiceNumber} marked as ${STATUS_LABELS[nextStatus].toLowerCase()}.`);
+              router.refresh();
+            } catch (error) {
+              setMessage(error instanceof Error ? error.message : "Unable to update invoice status.");
+            }
+          });
+        }}
+        type="button"
+      >
+        {buttonLabel}
+      </button>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -126,6 +156,7 @@ export function DashboardClient({
                       <span className="status-pill" data-status={invoice.status}>
                         {STATUS_LABELS[invoice.status]}
                       </span>
+                      {renderPaymentToggle(invoice)}
                       {isOverdue(invoice) && (
                         <span className="text-xs font-medium text-[#d82c0d] bg-[#fed3d1] px-2 py-0.5 rounded-full">
                           Overdue
@@ -193,6 +224,9 @@ export function DashboardClient({
                             </span>
                           )}
                         </div>
+                        {invoice.status === "issued" || invoice.status === "paid" ? (
+                          <div className="mt-2">{renderPaymentToggle(invoice)}</div>
+                        ) : null}
                       </td>
                       <td className="px-5 py-4 align-middle text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">

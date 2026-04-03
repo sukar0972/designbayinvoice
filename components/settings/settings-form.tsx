@@ -309,6 +309,63 @@ export function SettingsForm({
                             updateField("defaultPaymentMethods", next);
                           }}
                         />
+                        <label className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
+                          <input
+                            checked={Boolean(method.processingFeeEnabled)}
+                            onChange={(event) => {
+                              const next = [...profile.defaultPaymentMethods];
+                              next[index] = {
+                                ...method,
+                                processingFeeEnabled: event.target.checked,
+                              };
+                              updateField("defaultPaymentMethods", next);
+                            }}
+                            type="checkbox"
+                          />
+                          Add a processing fee on top for this payment method
+                        </label>
+                        {method.processingFeeEnabled ? (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="field-label">Fee percent</label>
+                              <input
+                                className="field"
+                                min="0"
+                                placeholder="2.9"
+                                step="0.01"
+                                type="number"
+                                value={method.processingFeePercent ?? 0}
+                                onChange={(event) => {
+                                  const next = [...profile.defaultPaymentMethods];
+                                  next[index] = {
+                                    ...method,
+                                    processingFeePercent: Number(event.target.value),
+                                  };
+                                  updateField("defaultPaymentMethods", next);
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="field-label">Flat fee</label>
+                              <input
+                                className="field"
+                                min="0"
+                                placeholder="0.30"
+                                step="0.01"
+                                type="number"
+                                value={method.processingFeeFlatAmount ?? 0}
+                                onChange={(event) => {
+                                  const next = [...profile.defaultPaymentMethods];
+                                  next[index] = {
+                                    ...method,
+                                    processingFeeFlatAmount: Number(event.target.value),
+                                  };
+                                  updateField("defaultPaymentMethods", next);
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="flex flex-col gap-2">
                         <button

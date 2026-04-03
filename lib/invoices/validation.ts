@@ -11,6 +11,9 @@ export const paymentInstructionSchema = z.object({
   label: z.string().min(1),
   details: z.string().default(""),
   preferred: z.boolean().default(false),
+  processingFeeEnabled: z.boolean().default(false),
+  processingFeePercent: z.coerce.number().min(0).default(0),
+  processingFeeFlatAmount: z.coerce.number().min(0).default(0),
 });
 
 export const billToSchema = z.object({

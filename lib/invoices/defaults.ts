@@ -12,6 +12,16 @@ function newId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+function normalizeNonNegativeNumber(value: unknown) {
+  const parsed = Number(value ?? 0);
+
+  if (!Number.isFinite(parsed) || Number.isNaN(parsed)) {
+    return 0;
+  }
+
+  return Math.max(parsed, 0);
+}
+
 export function createLineItem(): LineItem {
   return {
     id: newId("item"),
@@ -35,6 +45,23 @@ export function createPaymentInstruction(label = ""): PaymentInstruction {
     label,
     details: "",
     preferred: false,
+    processingFeeEnabled: false,
+    processingFeePercent: 0,
+    processingFeeFlatAmount: 0,
+  };
+}
+
+export function normalizePaymentInstruction(
+  method: Partial<PaymentInstruction> & Pick<PaymentInstruction, "id" | "label">,
+): PaymentInstruction {
+  return {
+    id: method.id,
+    label: method.label,
+    details: method.details ?? "",
+    preferred: Boolean(method.preferred),
+    processingFeeEnabled: Boolean(method.processingFeeEnabled),
+    processingFeePercent: normalizeNonNegativeNumber(method.processingFeePercent),
+    processingFeeFlatAmount: normalizeNonNegativeNumber(method.processingFeeFlatAmount),
   };
 }
 
@@ -72,9 +99,9 @@ export function createEmptyInvoice(profile?: BusinessProfileForm): InvoiceFormSt
     companySnapshot: toCompanySnapshot(businessProfile),
     lineItems: [createLineItem()],
     taxLines: [],
-    paymentMethods: businessProfile.defaultPaymentMethods.map((method) => ({
-      ...method,
-    })),
+    paymentMethods: businessProfile.defaultPaymentMethods.map((method) =>
+      normalizePaymentInstruction(method),
+    ),
     notes: businessProfile.defaultNotes,
     amountPaid: 0,
   };
@@ -90,9 +117,11 @@ export function createDuplicateInvoice(source: InvoiceRecord): InvoiceFormState 
     amountPaid: 0,
     lineItems: source.lineItems.map((item) => ({ ...item, id: newId("item") })),
     taxLines: source.taxLines.map((taxLine) => ({ ...taxLine, id: newId("tax") })),
-    paymentMethods: source.paymentMethods.map((method) => ({
-      ...method,
-      id: newId("pay"),
-    })),
+    paymentMethods: source.paymentMethods.map((method) =>
+      normalizePaymentInstruction({
+        ...method,
+        id: newId("pay"),
+      }),
+    ),
   };
 }
