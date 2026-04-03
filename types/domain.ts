@@ -1,5 +1,15 @@
 export type CurrencyCode = "CAD" | "USD";
 
+export type OrganizationRole = "owner" | "member";
+
+export type OrganizationMembershipStatus = "active" | "removed";
+
+export type OrganizationInviteStatus =
+  | "pending"
+  | "accepted"
+  | "revoked"
+  | "expired";
+
 export type InvoiceStatus =
   | "draft"
   | "issued"
@@ -83,6 +93,37 @@ export type BusinessProfileForm = {
   logoUrl?: string | null;
 };
 
+export type Organization = {
+  id: string;
+  ownerUserId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OrganizationMember = {
+  id: string;
+  organizationId: string;
+  userId: string;
+  email: string;
+  role: OrganizationRole;
+  status: OrganizationMembershipStatus;
+  createdAt: string;
+};
+
+export type OrganizationInvite = {
+  id: string;
+  organizationId: string;
+  invitedByUserId: string;
+  email: string;
+  token: string;
+  status: OrganizationInviteStatus;
+  expiresAt: string;
+  acceptedAt?: string | null;
+  acceptedByUserId?: string | null;
+  createdAt: string;
+};
+
 export type InvoiceFormState = {
   id?: string;
   invoiceNumber?: string | null;
@@ -119,3 +160,19 @@ export type DashboardSnapshot = {
   profile: BusinessProfileForm;
   invoices: InvoiceRecord[];
 };
+
+export type OrganizationContext = {
+  organization: Organization;
+  membership: OrganizationMember;
+  profile: BusinessProfileForm;
+};
+
+export type SettingsSnapshot = OrganizationContext & {
+  members: OrganizationMember[];
+  invites: OrganizationInvite[];
+};
+
+export type InviteAcceptanceResult =
+  | { ok: true; organizationId: string }
+  | { ok: false; reason: "missing_token" | "invalid" | "expired" | "revoked" | "accepted" | "already_member" }
+  | { ok: false; reason: "email_mismatch"; invitedEmail: string };

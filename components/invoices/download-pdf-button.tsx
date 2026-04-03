@@ -12,18 +12,83 @@ type DownloadPdfButtonProps = {
   invoice: InvoiceFormState | InvoiceRecord;
   className?: string;
   label?: string;
+  pdfHref?: string;
+  printHref?: string;
 };
 
 export function DownloadPdfButton({
   invoice,
   className,
   label = "Download PDF",
+  pdfHref,
+  printHref,
 }: DownloadPdfButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   async function handleDownload() {
+    if (pdfHref) {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await fetch(pdfHref, {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          let message = `PDF generation failed with ${response.status}.`;
+
+          try {
+            const payload = (await response.json()) as { error?: string };
+            if (payload.error) {
+              message = payload.error;
+            }
+          } catch {
+            // Ignore JSON parse failures and keep the default message.
+          }
+
+          throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const contentDisposition = response.headers.get("content-disposition");
+        const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/i);
+
+        link.href = objectUrl;
+        link.download = filenameMatch?.[1] ?? "invoice.pdf";
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(objectUrl);
+        return;
+      } catch (caughtError) {
+        console.error("Server PDF generation failed; falling back to print view.", caughtError);
+
+        if (printHref) {
+          setError(
+            caughtError instanceof Error
+              ? `Server PDF failed, opening print fallback. ${caughtError.message}`
+              : "Server PDF failed, opening print fallback.",
+          );
+          window.open(printHref, "_blank", "noopener,noreferrer");
+          return;
+        }
+
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Unable to generate the PDF for this invoice.",
+        );
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+
     if (!containerRef.current) {
       return;
     }
@@ -33,34 +98,82 @@ export function DownloadPdfButton({
 
     try {
       await new Promise((resolve) => window.setTimeout(resolve, 80));
+      if ("fonts" in document) {
+        await document.fonts.ready;
+      }
 
-      const canvas = await html2canvas(containerRef.current, {
-        scale: 2,
-        backgroundColor: "#ffffff",
-        useCORS: true,
-        logging: false,
-        width: containerRef.current.scrollWidth,
-        height: containerRef.current.scrollHeight,
-      });
-
-      const imageData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imageProperties = pdf.getImageProperties(imageData);
-      const imageHeight = (imageProperties.height * pdfWidth) / imageProperties.width;
+      const pageMargin = 12;
+      const contentWidth = pdfWidth - pageMargin * 2;
+      const contentHeight = pdfHeight - pageMargin * 2;
 
-      let heightLeft = imageHeight;
-      let position = 0;
+      const blocks = Array.from(
+        containerRef.current.querySelectorAll<HTMLElement>("[data-pdf-block]"),
+      );
 
-      pdf.addImage(imageData, "PNG", 0, position, pdfWidth, imageHeight);
-      heightLeft -= pdfHeight;
+      if (blocks.length === 0) {
+        throw new Error("No printable invoice sections were found.");
+      }
 
-      while (heightLeft > 0) {
-        position = heightLeft - imageHeight;
-        pdf.addPage();
-        pdf.addImage(imageData, "PNG", 0, position, pdfWidth, imageHeight);
-        heightLeft -= pdfHeight;
+      let cursorY = pageMargin;
+
+      for (let index = 0; index < blocks.length; index += 1) {
+        const block = blocks[index];
+        const canvas = await html2canvas(block, {
+          scale: 2,
+          backgroundColor: "#ffffff",
+          useCORS: true,
+          logging: false,
+          width: block.scrollWidth,
+          height: block.scrollHeight,
+          windowWidth: 1280,
+          windowHeight: Math.max(1800, containerRef.current.scrollHeight),
+          scrollX: 0,
+          scrollY: 0,
+        });
+
+        const imageData = canvas.toDataURL("image/png");
+        const imageProperties = pdf.getImageProperties(imageData);
+        const blockHeight = (imageProperties.height * contentWidth) / imageProperties.width;
+
+        if (blockHeight <= contentHeight) {
+          if (cursorY > pageMargin && cursorY + blockHeight > pdfHeight - pageMargin) {
+            pdf.addPage();
+            cursorY = pageMargin;
+          }
+
+          pdf.addImage(imageData, "PNG", pageMargin, cursorY, contentWidth, blockHeight);
+          cursorY += blockHeight;
+          continue;
+        }
+
+        if (cursorY > pageMargin) {
+          pdf.addPage();
+          cursorY = pageMargin;
+        }
+
+        let consumedHeight = 0;
+
+        while (consumedHeight < blockHeight) {
+          pdf.addImage(
+            imageData,
+            "PNG",
+            pageMargin,
+            pageMargin - consumedHeight,
+            contentWidth,
+            blockHeight,
+          );
+          consumedHeight += contentHeight;
+
+          if (consumedHeight < blockHeight) {
+            pdf.addPage();
+          }
+        }
+
+        const remainder = blockHeight % contentHeight;
+        cursorY = remainder === 0 ? pdfHeight - pageMargin : pageMargin + remainder;
       }
 
       const safeNumber = (invoice.invoiceNumber || "invoice").replace(/[^a-z0-9_-]/gi, "_");
@@ -91,7 +204,11 @@ export function DownloadPdfButton({
         </button>
         {error ? <p className="text-sm font-medium text-[var(--danger)]">{error}</p> : null}
       </div>
-      <div className="pointer-events-none fixed left-[-300vw] top-0 z-[-1] w-[210mm] bg-white" ref={containerRef}>
+      <div
+        className="pointer-events-none fixed left-[-300vw] top-0 z-[-1] w-[980px] bg-white"
+        data-pdf-capture-root
+        ref={containerRef}
+      >
         <InvoiceDocument invoice={invoice} printable />
       </div>
     </>

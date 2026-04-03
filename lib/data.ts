@@ -1,7 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 
 import { requireUser } from "@/lib/auth";
+import { normalizeEmail, isInviteExpired } from "@/lib/organizations";
 import { computeInvoiceTotals } from "@/lib/invoices/calculations";
 import { EMPTY_COMPANY_PROFILE } from "@/lib/invoices/constants";
 import { createDuplicateInvoice, createEmptyInvoice } from "@/lib/invoices/defaults";
@@ -9,15 +10,52 @@ import type {
   BillTo,
   BusinessProfileForm,
   DashboardSnapshot,
+  InviteAcceptanceResult,
   InvoiceFormState,
   InvoiceRecord,
+  Organization,
+  OrganizationContext,
+  OrganizationInvite,
+  OrganizationMember,
   PaymentInstruction,
+  SettingsSnapshot,
   TaxLine,
   TaxRegistration,
 } from "@/types/domain";
 
-type BusinessProfileRow = {
+type OrganizationRow = {
+  id: string;
+  owner_user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type OrganizationMemberRow = {
+  id: string;
+  organization_id: string;
   user_id: string;
+  email: string;
+  role: "owner" | "member";
+  status: "active" | "removed";
+  created_at: string;
+};
+
+type OrganizationInviteRow = {
+  id: string;
+  organization_id: string;
+  invited_by_user_id: string;
+  email: string;
+  token: string;
+  status: "pending" | "accepted" | "revoked" | "expired";
+  expires_at: string;
+  accepted_at: string | null;
+  accepted_by_user_id: string | null;
+  created_at: string;
+};
+
+type BusinessProfileRow = {
+  organization_id: string;
   company_name: string;
   email: string | null;
   phone: string | null;
@@ -39,7 +77,7 @@ type BusinessProfileRow = {
 
 type InvoiceRow = {
   id: string;
-  user_id: string;
+  organization_id: string;
   invoice_number: string;
   sequence_number: number;
   status: InvoiceRecord["status"];
@@ -70,6 +108,43 @@ function asArray<T>(value: unknown) {
 
 function asNumber(value: string | number | null | undefined) {
   return Number(value ?? 0);
+}
+
+function mapOrganizationRow(row: OrganizationRow): Organization {
+  return {
+    id: row.id,
+    ownerUserId: row.owner_user_id,
+    name: row.name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapOrganizationMemberRow(row: OrganizationMemberRow): OrganizationMember {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    userId: row.user_id,
+    email: row.email,
+    role: row.role,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+function mapOrganizationInviteRow(row: OrganizationInviteRow): OrganizationInvite {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    invitedByUserId: row.invited_by_user_id,
+    email: row.email,
+    token: row.token,
+    status: row.status,
+    expiresAt: row.expires_at,
+    acceptedAt: row.accepted_at,
+    acceptedByUserId: row.accepted_by_user_id,
+    createdAt: row.created_at,
+  };
 }
 
 async function getSignedLogoUrl(
@@ -123,6 +198,7 @@ async function mapInvoiceRow(
 ) {
   const companySnapshot = row.company_snapshot as InvoiceRecord["companySnapshot"];
   const logoUrl = await getSignedLogoUrl(supabase, companySnapshot?.logoPath ?? null);
+
   const record: InvoiceRecord = {
     id: row.id,
     invoiceNumber: row.invoice_number,
@@ -204,14 +280,85 @@ export function serializeInvoice(invoice: InvoiceFormState | InvoiceRecord) {
   };
 }
 
-export async function ensureBusinessProfileForUser(
+async function getOrganizationById(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
-  user: User,
+  organizationId: string,
+) {
+  const { data, error } = await supabase
+    .from("organizations")
+    .select("*")
+    .eq("id", organizationId)
+    .single<OrganizationRow>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return mapOrganizationRow(data);
+}
+
+async function getActiveMembershipForUserId(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("organization_members")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle<OrganizationMemberRow>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ? mapOrganizationMemberRow(data) : null;
+}
+
+async function getAnyMembershipForUserId(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("organization_members")
+    .select("id")
+    .eq("user_id", userId)
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data?.length ?? 0) > 0;
+}
+
+async function getPendingInvitesForEmail(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  email: string,
+) {
+  const { data, error } = await supabase
+    .from("organization_invites")
+    .select("*")
+    .eq("email", normalizeEmail(email))
+    .eq("status", "pending")
+    .returns<OrganizationInviteRow[]>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map(mapOrganizationInviteRow);
+}
+
+async function ensureBusinessProfileForOrganization(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  organizationId: string,
+  fallbackEmail: string,
 ) {
   const { data, error } = await supabase
     .from("business_profiles")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("organization_id", organizationId)
     .maybeSingle<BusinessProfileRow>();
 
   if (error) {
@@ -222,11 +369,11 @@ export async function ensureBusinessProfileForUser(
     return mapBusinessProfileRow(data, await getSignedLogoUrl(supabase, data.logo_path));
   }
 
-  const empty = EMPTY_COMPANY_PROFILE(user.email ?? "");
+  const empty = EMPTY_COMPANY_PROFILE(fallbackEmail);
   const { data: inserted, error: insertError } = await supabase
     .from("business_profiles")
     .insert({
-      user_id: user.id,
+      organization_id: organizationId,
       ...serializeBusinessProfile(empty),
     })
     .select("*")
@@ -242,13 +389,114 @@ export async function ensureBusinessProfileForUser(
   );
 }
 
-export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
+async function bootstrapOrganizationForUser(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  user: User,
+) {
+  const normalizedEmail = normalizeEmail(user.email ?? "");
+  const empty = EMPTY_COMPANY_PROFILE(user.email ?? "");
+
+  const { error: organizationError } = await supabase
+    .from("organizations")
+    .upsert({
+      id: user.id,
+      owner_user_id: user.id,
+      name: empty.companyName,
+    });
+
+  if (organizationError) {
+    throw new Error(organizationError.message);
+  }
+
+  const { error: membershipError } = await supabase
+    .from("organization_members")
+    .upsert(
+      {
+        organization_id: user.id,
+        user_id: user.id,
+        email: normalizedEmail,
+        role: "owner",
+        status: "active",
+      },
+      {
+        onConflict: "organization_id,user_id",
+      },
+    );
+
+  if (membershipError) {
+    throw new Error(membershipError.message);
+  }
+
+  const { error: profileError } = await supabase
+    .from("business_profiles")
+    .upsert({
+      organization_id: user.id,
+      ...serializeBusinessProfile(empty),
+    });
+
+  if (profileError) {
+    throw new Error(profileError.message);
+  }
+}
+
+export async function ensureOrganizationContextForUser(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  user: User,
+): Promise<OrganizationContext | null> {
+  let membership = await getActiveMembershipForUserId(supabase, user.id);
+
+  if (!membership) {
+    const [hasAnyMembership, pendingInvites] = await Promise.all([
+      getAnyMembershipForUserId(supabase, user.id),
+      getPendingInvitesForEmail(supabase, user.email ?? ""),
+    ]);
+
+    if (!hasAnyMembership && pendingInvites.length === 0) {
+      await bootstrapOrganizationForUser(supabase, user);
+      membership = await getActiveMembershipForUserId(supabase, user.id);
+    }
+  }
+
+  if (!membership) {
+    return null;
+  }
+
+  const organization = await getOrganizationById(supabase, membership.organizationId);
+  const profile = await ensureBusinessProfileForOrganization(
+    supabase,
+    organization.id,
+    user.email ?? "",
+  );
+
+  return {
+    organization,
+    membership,
+    profile,
+  };
+}
+
+export async function requireOrganizationContext() {
   const { supabase, user } = await requireUser();
-  const profile = await ensureBusinessProfileForUser(supabase, user);
+  const context = await ensureOrganizationContextForUser(supabase, user);
+
+  if (!context) {
+    redirect("/login");
+  }
+
+  return {
+    supabase,
+    user,
+    ...context,
+  };
+}
+
+export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
+  const { supabase, organization, profile } = await requireOrganizationContext();
 
   const { data, error } = await supabase
     .from("invoices")
     .select("*")
+    .eq("organization_id", organization.id)
     .order("created_at", { ascending: false })
     .returns<InvoiceRow[]>();
 
@@ -267,15 +515,52 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
 }
 
 export async function getBusinessProfileForCurrentUser() {
-  const { supabase, user } = await requireUser();
-  return ensureBusinessProfileForUser(supabase, user);
+  const { profile } = await requireOrganizationContext();
+  return profile;
+}
+
+export async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
+  const { supabase, organization, membership, profile } = await requireOrganizationContext();
+
+  const [membersResult, invitesResult] = await Promise.all([
+    supabase
+      .from("organization_members")
+      .select("*")
+      .eq("organization_id", organization.id)
+      .order("created_at", { ascending: true })
+      .returns<OrganizationMemberRow[]>(),
+    supabase
+      .from("organization_invites")
+      .select("*")
+      .eq("organization_id", organization.id)
+      .neq("status", "accepted")
+      .order("created_at", { ascending: false })
+      .returns<OrganizationInviteRow[]>(),
+  ]);
+
+  if (membersResult.error) {
+    throw new Error(membersResult.error.message);
+  }
+
+  if (invitesResult.error) {
+    throw new Error(invitesResult.error.message);
+  }
+
+  return {
+    organization,
+    membership,
+    profile,
+    members: (membersResult.data ?? []).map(mapOrganizationMemberRow),
+    invites: (invitesResult.data ?? []).map(mapOrganizationInviteRow),
+  };
 }
 
 export async function getInvoiceById(id: string) {
-  const { supabase } = await requireUser();
+  const { supabase, organization } = await requireOrganizationContext();
   const { data, error } = await supabase
     .from("invoices")
     .select("*")
+    .eq("organization_id", organization.id)
     .eq("id", id)
     .maybeSingle<InvoiceRow>();
 
@@ -291,8 +576,7 @@ export async function getInvoiceById(id: string) {
 }
 
 export async function getNewInvoiceSeed(duplicateId?: string) {
-  const { supabase, user } = await requireUser();
-  const profile = await ensureBusinessProfileForUser(supabase, user);
+  const { supabase, organization, profile } = await requireOrganizationContext();
 
   if (!duplicateId) {
     return {
@@ -304,6 +588,7 @@ export async function getNewInvoiceSeed(duplicateId?: string) {
   const { data, error } = await supabase
     .from("invoices")
     .select("*")
+    .eq("organization_id", organization.id)
     .eq("id", duplicateId)
     .maybeSingle<InvoiceRow>();
 
@@ -320,5 +605,143 @@ export async function getNewInvoiceSeed(duplicateId?: string) {
   return {
     profile,
     invoice: createDuplicateInvoice(source),
+  };
+}
+
+export async function acceptOrganizationInviteForCurrentUser(
+  token: string | undefined,
+): Promise<InviteAcceptanceResult> {
+  if (!token) {
+    return {
+      ok: false,
+      reason: "missing_token",
+    };
+  }
+
+  const { supabase, user } = await requireUser();
+  const normalizedUserEmail = normalizeEmail(user.email ?? "");
+
+  const activeMembership = await getActiveMembershipForUserId(supabase, user.id);
+
+  if (activeMembership) {
+    return {
+      ok: false,
+      reason: "already_member",
+    };
+  }
+
+  const { data, error } = await supabase.rpc("lookup_invite_by_token", {
+    invite_token: token,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const inviteRow = Array.isArray(data) ? data[0] : data;
+
+  if (!inviteRow) {
+    return {
+      ok: false,
+      reason: "invalid",
+    };
+  }
+
+  const invite = mapOrganizationInviteRow(inviteRow as OrganizationInviteRow);
+
+  if (invite.status === "revoked") {
+    return { ok: false, reason: "revoked" };
+  }
+
+  if (invite.status === "accepted") {
+    return { ok: false, reason: "accepted" };
+  }
+
+  if (invite.status === "expired") {
+    return { ok: false, reason: "expired" };
+  }
+
+  if (normalizeEmail(invite.email) !== normalizedUserEmail) {
+    return {
+      ok: false,
+      reason: "email_mismatch",
+      invitedEmail: invite.email,
+    };
+  }
+
+  if (isInviteExpired(invite.expiresAt)) {
+    await supabase
+      .from("organization_invites")
+      .update({ status: "expired" })
+      .eq("id", invite.id);
+
+    return {
+      ok: false,
+      reason: "expired",
+    };
+  }
+
+  const { data: existingMembership, error: membershipError } = await supabase
+    .from("organization_members")
+    .select("*")
+    .eq("organization_id", invite.organizationId)
+    .eq("user_id", user.id)
+    .maybeSingle<OrganizationMemberRow>();
+
+  if (membershipError) {
+    throw new Error(membershipError.message);
+  }
+
+  if (existingMembership) {
+    const { error: reactivateError } = await supabase
+      .from("organization_members")
+      .update({
+        email: normalizedUserEmail,
+        role: "member",
+        status: "active",
+      })
+      .eq("id", existingMembership.id);
+
+    if (reactivateError) {
+      throw new Error(reactivateError.message);
+    }
+  } else {
+    const { error: insertError } = await supabase
+      .from("organization_members")
+      .insert({
+        organization_id: invite.organizationId,
+        user_id: user.id,
+        email: normalizedUserEmail,
+        role: "member",
+        status: "active",
+      });
+
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+  }
+
+  const { error: acceptError } = await supabase
+    .from("organization_invites")
+    .update({
+      status: "accepted",
+      accepted_at: new Date().toISOString(),
+      accepted_by_user_id: user.id,
+    })
+    .eq("id", invite.id);
+
+  if (acceptError) {
+    throw new Error(acceptError.message);
+  }
+
+  await ensureBusinessProfileForOrganization(
+    supabase,
+    invite.organizationId,
+    user.email ?? "",
+  );
+
+  return {
+    ok: true,
+    organizationId: invite.organizationId,
   };
 }

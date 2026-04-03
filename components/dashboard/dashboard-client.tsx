@@ -109,84 +109,130 @@ export function DashboardClient({
             </Link>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-[var(--border)] text-[var(--muted)] bg-[#fafbfb]">
-                  <th className="px-5 py-3 font-medium">Invoice</th>
-                  <th className="px-5 py-3 font-medium">Client</th>
-                  <th className="px-5 py-3 font-medium">Amount</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {invoices.map((invoice) => (
-                  <tr key={invoice.id} className="hover:bg-[#fafbfb] transition-colors group">
-                    <td className="px-5 py-4 align-middle">
-                      <div className="flex flex-col">
-                        <Link href={`/invoices/${invoice.id}`} className="font-semibold text-[var(--foreground)] hover:underline">
-                          {invoice.invoiceNumber}
-                        </Link>
-                        <span className="text-xs text-[var(--muted)] mt-1">Due {invoice.dueDate}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 align-middle">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-[var(--foreground)]">{invoice.billTo.name || "Unknown"}</span>
-                        <span className="text-xs text-[var(--muted)] mt-1">{invoice.projectReference || "No project"}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 align-middle font-medium text-[var(--foreground)]">
-                      {formatCurrency(invoice.totalAmount, invoice.currencyCode)}
-                    </td>
-                    <td className="px-5 py-4 align-middle">
-                      <div className="flex items-center gap-2">
-                        <span className="status-pill" data-status={invoice.status}>
-                          {STATUS_LABELS[invoice.status]}
+          <>
+            {/* Mobile View */}
+            <div className="md:hidden divide-y divide-[var(--border)]">
+              {invoices.map((invoice) => (
+                <div key={invoice.id} className="p-5 flex flex-col gap-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex flex-col">
+                      <Link href={`/invoices/${invoice.id}`} className="font-semibold text-base text-[var(--foreground)] hover:underline">
+                        {invoice.invoiceNumber}
+                      </Link>
+                      <span className="text-sm text-[var(--foreground)] mt-1">{invoice.billTo.name || "Unknown"}</span>
+                      <span className="text-xs text-[var(--muted)] mt-1">Due {invoice.dueDate}</span>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className="status-pill" data-status={invoice.status}>
+                        {STATUS_LABELS[invoice.status]}
+                      </span>
+                      {isOverdue(invoice) && (
+                        <span className="text-xs font-medium text-[#d82c0d] bg-[#fed3d1] px-2 py-0.5 rounded-full">
+                          Overdue
                         </span>
-                        {isOverdue(invoice) && (
-                          <span className="text-xs font-medium text-[#d82c0d] bg-[#fed3d1] px-2 py-0.5 rounded-full">
-                            Overdue
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 align-middle text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
-                        <DownloadPdfButton className="btn btn-secondary !p-1.5 shadow-sm" invoice={invoice} />
-                        <Link className="btn btn-secondary !p-1.5 shadow-sm" href={`/invoices/new?duplicate=${invoice.id}`} title="Duplicate">
-                          <Copy className="h-4 w-4 text-[var(--muted)]" />
-                        </Link>
-                        {invoice.status === "draft" && (
-                          <button
-                            className="btn btn-secondary !p-1.5 shadow-sm text-[#d82c0d] hover:bg-[#fed3d1] hover:border-[#fed3d1]"
-                            disabled={pending}
-                            onClick={() => {
-                              if (window.confirm("Delete draft invoice?")) {
-                                startTransition(async () => {
-                                  try {
-                                    await deleteDraftInvoice(invoice.id);
-                                    setMessage(`Deleted ${invoice.invoiceNumber}`);
-                                    router.refresh();
-                                  } catch (error) {
-                                    setMessage(error instanceof Error ? error.message : "Error deleting draft");
-                                  }
-                                });
-                              }
-                            }}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                      )}
+                      <span className="font-medium text-[var(--foreground)] mt-1">
+                        {formatCurrency(invoice.totalAmount, invoice.currencyCode)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 pt-2">
+                    <Link className="btn btn-secondary flex-1 justify-center shadow-sm" href={`/invoices/${invoice.id}`}>
+                      Open invoice
+                    </Link>
+                    <DownloadPdfButton className="btn btn-secondary !px-3 shadow-sm" invoice={invoice} />
+                    <Link className="btn btn-secondary !px-3 shadow-sm" href={`/invoices/new?duplicate=${invoice.id}`} title="Duplicate">
+                      <Copy className="h-4 w-4 text-[var(--muted)]" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-[var(--border)] text-[var(--muted)] bg-[#fafbfb]">
+                    <th className="px-5 py-3 font-medium">Invoice</th>
+                    <th className="px-5 py-3 font-medium">Client</th>
+                    <th className="px-5 py-3 font-medium">Amount</th>
+                    <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {invoices.map((invoice) => (
+                    <tr key={invoice.id} className="hover:bg-[#fafbfb] transition-colors group">
+                      <td className="px-5 py-4 align-middle">
+                        <div className="flex flex-col">
+                          <Link href={`/invoices/${invoice.id}`} className="font-semibold text-[var(--foreground)] hover:underline">
+                            {invoice.invoiceNumber}
+                          </Link>
+                          <span className="text-xs text-[var(--muted)] mt-1">Due {invoice.dueDate}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 align-middle">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-[var(--foreground)]">{invoice.billTo.name || "Unknown"}</span>
+                          <span className="text-xs text-[var(--muted)] mt-1">{invoice.projectReference || "No project"}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 align-middle font-medium text-[var(--foreground)]">
+                        {formatCurrency(invoice.totalAmount, invoice.currencyCode)}
+                      </td>
+                      <td className="px-5 py-4 align-middle">
+                        <div className="flex items-center gap-2">
+                          <span className="status-pill" data-status={invoice.status}>
+                            {STATUS_LABELS[invoice.status]}
+                          </span>
+                          {isOverdue(invoice) && (
+                            <span className="text-xs font-medium text-[#d82c0d] bg-[#fed3d1] px-2 py-0.5 rounded-full">
+                              Overdue
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 align-middle text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
+                          <Link className="btn btn-secondary !p-1.5 shadow-sm" href={`/invoices/${invoice.id}`} title="Open">
+                            <ArrowRight className="h-4 w-4 text-[var(--muted)]" />
+                          </Link>
+                          <DownloadPdfButton className="btn btn-secondary !p-1.5 shadow-sm" invoice={invoice} />
+                          <Link className="btn btn-secondary !p-1.5 shadow-sm" href={`/invoices/new?duplicate=${invoice.id}`} title="Duplicate">
+                            <Copy className="h-4 w-4 text-[var(--muted)]" />
+                          </Link>
+                          {invoice.status === "draft" && (
+                            <button
+                              className="btn btn-secondary !p-1.5 shadow-sm text-[#d82c0d] hover:bg-[#fed3d1] hover:border-[#fed3d1]"
+                              disabled={pending}
+                              onClick={() => {
+                                if (window.confirm("Delete draft invoice?")) {
+                                  startTransition(async () => {
+                                    try {
+                                      await deleteDraftInvoice(invoice.id);
+                                      setMessage(`Deleted ${invoice.invoiceNumber}`);
+                                      router.refresh();
+                                    } catch (error) {
+                                      setMessage(error instanceof Error ? error.message : "Error deleting draft");
+                                    }
+                                  });
+                                }
+                              }}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

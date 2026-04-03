@@ -65,6 +65,9 @@ export default async function HomePage() {
                 Get started
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Link>
+              <Link className="btn btn-secondary px-6 py-3 text-base" href="/guest">
+                Try without signing in
+              </Link>
             </div>
             <div className="mt-8 flex items-center gap-6 text-sm text-[var(--muted)]">
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-[var(--accent)]" /> Free forever</span>
@@ -118,7 +121,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-12 text-center max-w-2xl mx-auto">
             <h2 className="text-2xl font-semibold text-[var(--foreground)]">Built for focused operations</h2>
-            <p className="mt-4 text-[var(--muted)]">Everything you need to send a bill, nothing you don't.</p>
+            <p className="mt-4 text-[var(--muted)]">Everything you need to send a bill, nothing you don&apos;t.</p>
           </div>
           
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">

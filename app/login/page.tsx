@@ -18,6 +18,10 @@ export default function LoginPage() {
           <Link href="/" className="font-medium text-[var(--accent)] hover:text-[var(--accent-strong)]">
             return to the landing page
           </Link>
+          {" "}or{" "}
+          <Link href="/guest" className="font-medium text-[var(--accent)] hover:text-[var(--accent-strong)]">
+            try a guest invoice
+          </Link>
         </p>
       </div>
 

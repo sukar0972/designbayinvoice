@@ -2,19 +2,34 @@
 
 import type { ChangeEvent } from "react";
 import { startTransition, useState } from "react";
-import { ImageUp, Loader2, Plus, Save, Trash2, HelpCircle } from "lucide-react";
+import { HelpCircle, ImageUp, Loader2, Trash2 } from "lucide-react";
 
 import { saveBusinessProfile } from "@/app/actions";
 import { createPaymentInstruction } from "@/lib/invoices/defaults";
 import { createClient } from "@/lib/supabase/client";
-import type { BusinessProfileForm } from "@/types/domain";
+import type {
+  BusinessProfileForm,
+  OrganizationInvite,
+  OrganizationMember,
+} from "@/types/domain";
+
+import { TeamManagement } from "@/components/settings/team-management";
 
 type SettingsFormProps = {
+  currentMembership: OrganizationMember;
+  initialInvites: OrganizationInvite[];
+  initialMembers: OrganizationMember[];
   initialProfile: BusinessProfileForm;
-  userId: string;
+  organizationId: string;
 };
 
-export function SettingsForm({ initialProfile, userId }: SettingsFormProps) {
+export function SettingsForm({
+  currentMembership,
+  initialInvites,
+  initialMembers,
+  initialProfile,
+  organizationId,
+}: SettingsFormProps) {
   const [profile, setProfile] = useState(initialProfile);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -37,7 +52,7 @@ export function SettingsForm({ initialProfile, userId }: SettingsFormProps) {
     try {
       const supabase = createClient();
       const extension = file.name.split(".").pop() ?? "png";
-      const path = `${userId}/logo/${crypto.randomUUID()}.${extension}`;
+      const path = `${organizationId}/logo/${crypto.randomUUID()}.${extension}`;
       const { error } = await supabase.storage
         .from("branding-assets")
         .upload(path, file, { upsert: true, contentType: file.type });
@@ -329,6 +344,12 @@ export function SettingsForm({ initialProfile, userId }: SettingsFormProps) {
             )}
           </div>
         </section>
+
+        <TeamManagement
+          currentMemberRole={currentMembership.role}
+          invites={initialInvites}
+          members={initialMembers}
+        />
       </div>
     </div>
   );
