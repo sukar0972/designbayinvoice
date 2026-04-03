@@ -3,6 +3,7 @@ import type {
   InvoiceFormState,
   InvoiceRecord,
   InvoiceStatus,
+  PaymentInstruction,
 } from "@/types/domain";
 
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -38,6 +39,36 @@ export function computeInvoiceTotals(invoice: InvoiceFormState | InvoiceRecord) 
     totalAmount,
     balanceDue,
   };
+}
+
+export function computePaymentMethodProcessingFee(
+  invoice: InvoiceFormState | InvoiceRecord,
+  method: PaymentInstruction,
+) {
+  if (!method.processingFeeEnabled) {
+    return 0;
+  }
+
+  const totals = computeInvoiceTotals(invoice);
+  const baseAmount = sanitizeMoney(totals.balanceDue);
+
+  if (baseAmount <= 0) {
+    return 0;
+  }
+
+  const percentFee = baseAmount * (sanitizeMoney(method.processingFeePercent ?? 0) / 100);
+  const flatFee = sanitizeMoney(method.processingFeeFlatAmount ?? 0);
+
+  return sanitizeMoney(percentFee + flatFee);
+}
+
+export function computePaymentMethodTotal(
+  invoice: InvoiceFormState | InvoiceRecord,
+  method: PaymentInstruction,
+) {
+  const totals = computeInvoiceTotals(invoice);
+
+  return sanitizeMoney(totals.balanceDue + computePaymentMethodProcessingFee(invoice, method));
 }
 
 export function formatCurrency(amount: number, currencyCode: CurrencyCode) {

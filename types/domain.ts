@@ -41,6 +41,9 @@ export type PaymentInstruction = {
   label: string;
   details: string;
   preferred: boolean;
+  processingFeeEnabled?: boolean;
+  processingFeePercent?: number;
+  processingFeeFlatAmount?: number;
 };
 
 export type BillTo = {

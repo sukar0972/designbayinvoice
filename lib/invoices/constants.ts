@@ -10,18 +10,27 @@ export const DEFAULT_PAYMENT_METHODS: PaymentInstruction[] = [
     label: "Interac e-Transfer",
     details: "Auto-deposit enabled. Use invoice number as the payment reference.",
     preferred: true,
+    processingFeeEnabled: false,
+    processingFeePercent: 0,
+    processingFeeFlatAmount: 0,
   },
   {
     id: "card",
     label: "Credit Card",
     details: "Card payment can be arranged manually outside the app.",
     preferred: false,
+    processingFeeEnabled: false,
+    processingFeePercent: 2.9,
+    processingFeeFlatAmount: 0.3,
   },
   {
     id: "cash",
     label: "Cheque / Cash",
     details: "Make cheques payable to your business name.",
     preferred: false,
+    processingFeeEnabled: false,
+    processingFeePercent: 0,
+    processingFeeFlatAmount: 0,
   },
 ];
 
@@ -64,7 +73,7 @@ export const EMPTY_COMPANY_PROFILE = (
 
 export const STATUS_LABELS: Record<string, string> = {
   draft: "Draft",
-  issued: "Issued",
+  issued: "Issued - unpaid",
   partially_paid: "Partially Paid",
   paid: "Paid",
   void: "Void",
