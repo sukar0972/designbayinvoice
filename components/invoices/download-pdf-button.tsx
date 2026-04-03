@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -27,8 +27,34 @@ export function DownloadPdfButton({
 }: DownloadPdfButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const resolvedPdfHref = pdfHref ?? (invoice.id ? `/api/invoices/${invoice.id}/pdf` : undefined);
+
+  useEffect(() => {
+    if (!loading) {
+      setProgress(0);
+      return;
+    }
+
+    setProgress(12);
+
+    const intervalId = window.setInterval(() => {
+      setProgress((current) => {
+        if (current >= 92) {
+          return current;
+        }
+
+        const remaining = 100 - current;
+        const increment = Math.max(3, Math.round(remaining * 0.12));
+        return Math.min(92, current + increment);
+      });
+    }, 350);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [loading]);
 
   async function handleDownload() {
     if (getPrintHref) {
@@ -73,6 +99,7 @@ export function DownloadPdfButton({
         link.click();
         link.remove();
         URL.revokeObjectURL(objectUrl);
+        setProgress(100);
         return;
       } catch (caughtError) {
         setError(
@@ -175,6 +202,7 @@ export function DownloadPdfButton({
 
       const safeNumber = (invoice.invoiceNumber || "invoice").replace(/[^a-z0-9_-]/gi, "_");
       const safeName = (invoice.billTo.name || "client").replace(/[^a-z0-9_-]/gi, "_");
+      setProgress(100);
       pdf.save(`${safeNumber}_${safeName}.pdf`);
     } catch (caughtError) {
       setError(
@@ -199,6 +227,26 @@ export function DownloadPdfButton({
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           {label}
         </button>
+        {loading ? (
+          <div
+            aria-live="polite"
+            className="w-full max-w-xs rounded-md border border-[var(--border)] bg-white px-3 py-2"
+          >
+            <div className="flex items-center justify-between gap-3 text-xs font-medium text-[var(--muted)]">
+              <span>Generating PDF...</span>
+              <span>{progress}%</span>
+            </div>
+            <div
+              aria-hidden="true"
+              className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e5e7eb]"
+            >
+              <div
+                className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
         {error ? <p className="text-sm font-medium text-[var(--danger)]">{error}</p> : null}
       </div>
       <div
