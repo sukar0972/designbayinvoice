@@ -65,6 +65,9 @@ export default async function HomePage() {
                 Get started
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Link>
+              <Link className="btn btn-secondary px-6 py-3 text-base" href="/guest">
+                Try without signing in
+              </Link>
             </div>
             <div className="mt-8 flex items-center gap-6 text-sm text-[var(--muted)]">
               <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-[var(--accent)]" /> Free forever</span>

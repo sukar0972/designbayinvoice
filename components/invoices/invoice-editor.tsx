@@ -22,11 +22,15 @@ import { STATUS_LABELS } from "@/lib/invoices/constants";
 import type { InvoiceFormState, InvoiceRecord, LineItem, PaymentInstruction, TaxLine } from "@/types/domain";
 
 type InvoiceEditorProps = {
+  backHref?: string;
+  guestMode?: boolean;
   initialInvoice: InvoiceFormState | InvoiceRecord;
   isNew: boolean;
 };
 
 export function InvoiceEditor({
+  backHref = "/dashboard",
+  guestMode = false,
   initialInvoice,
   isNew,
 }: InvoiceEditorProps) {
@@ -84,6 +88,11 @@ export function InvoiceEditor({
   }
 
   async function handleSave() {
+    if (guestMode) {
+      setMessage("Guest mode is local only. Sign in to save invoices to your workspace.");
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
 
@@ -141,12 +150,12 @@ export function InvoiceEditor({
     <div className="space-y-6 max-w-[1400px] mx-auto relative pb-20 md:pb-0">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sticky top-0 bg-[var(--background)] z-30 py-4 border-b border-[var(--border)] -mt-4 px-1 md:-mt-8 md:pt-8 mb-6">
         <div className="flex items-center gap-4">
-          <Link className="p-2 -ml-2 rounded-md hover:bg-[#ebeef0] text-[var(--muted)] transition-colors" href="/dashboard" title="Back to dashboard">
+          <Link className="p-2 -ml-2 rounded-md hover:bg-[#ebeef0] text-[var(--muted)] transition-colors" href={backHref} title="Go back">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
             <h1 className="display-font text-xl font-semibold">
-              {invoice.invoiceNumber || "New invoice draft"}
+              {guestMode ? "Guest invoice draft" : invoice.invoiceNumber || "New invoice draft"}
             </h1>
             <div className="flex items-center gap-2 mt-1 text-sm text-[var(--muted)]">
               <span className="status-pill !py-0.5 !px-2 !text-[10px]" data-status={invoice.status}>
@@ -159,7 +168,7 @@ export function InvoiceEditor({
         </div>
 
         <div className="flex items-center gap-2">
-          {!isNew && (
+          {!guestMode && !isNew && (
             <Link className="btn btn-secondary shadow-sm" href={`/invoices/${invoice.id}/print`} target="_blank">
               Print
             </Link>
@@ -170,17 +179,31 @@ export function InvoiceEditor({
             pdfHref={invoice.id ? `/api/invoices/${invoice.id}/pdf` : undefined}
             printHref={invoice.id ? `/invoices/${invoice.id}/print?autoprint=1` : undefined}
           />
-          <button
-            className="btn btn-primary shadow-sm"
-            disabled={saving}
-            onClick={() => startTransition(handleSave)}
-            type="button"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-            {isNew ? "Create draft" : "Save"}
-          </button>
+          {guestMode ? (
+            <Link className="btn btn-primary shadow-sm" href="/login">
+              Sign in to save
+            </Link>
+          ) : (
+            <button
+              className="btn btn-primary shadow-sm"
+              disabled={saving}
+              onClick={() => startTransition(handleSave)}
+              type="button"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              {isNew ? "Create draft" : "Save"}
+            </button>
+          )}
         </div>
       </div>
+
+      {guestMode ? (
+        <div className="rounded-md border border-[#fed7aa] bg-[#fff7ed] p-4">
+          <p className="text-sm font-medium text-[#9a3412]">
+            Guest mode keeps everything in this browser tab only. Leave or refresh the page and your invoice is gone.
+          </p>
+        </div>
+      ) : null}
 
       {message && (
         <div className="rounded-md bg-[#e0f2fe] p-4 border border-[#bae6fd]">
@@ -431,7 +454,9 @@ export function InvoiceEditor({
             <article className="card-surface overflow-hidden mb-6 hidden md:block">
               <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
                 <h2 className="text-base font-semibold flex items-center gap-2"><FileText className="h-4 w-4" /> Live preview</h2>
-                <Link href={`/invoices/${invoice.id}/print`} target="_blank" className="text-xs text-[var(--accent)] hover:underline font-medium">Open in new tab</Link>
+                {!guestMode && invoice.id ? (
+                  <Link href={`/invoices/${invoice.id}/print`} target="_blank" className="text-xs text-[var(--accent)] hover:underline font-medium">Open in new tab</Link>
+                ) : null}
               </div>
               <div className="p-0 bg-[#ebeef0] flex justify-center py-8 px-4 overflow-hidden h-[calc(100vh-280px)] overflow-y-auto">
                 <div className="scale-[0.65] lg:scale-[0.75] origin-top md:origin-top w-[860px] pointer-events-none select-none">
