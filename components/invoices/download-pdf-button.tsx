@@ -12,18 +12,83 @@ type DownloadPdfButtonProps = {
   invoice: InvoiceFormState | InvoiceRecord;
   className?: string;
   label?: string;
+  pdfHref?: string;
+  printHref?: string;
 };
 
 export function DownloadPdfButton({
   invoice,
   className,
   label = "Download PDF",
+  pdfHref,
+  printHref,
 }: DownloadPdfButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   async function handleDownload() {
+    if (pdfHref) {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await fetch(pdfHref, {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          let message = `PDF generation failed with ${response.status}.`;
+
+          try {
+            const payload = (await response.json()) as { error?: string };
+            if (payload.error) {
+              message = payload.error;
+            }
+          } catch {
+            // Ignore JSON parse failures and keep the default message.
+          }
+
+          throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const contentDisposition = response.headers.get("content-disposition");
+        const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/i);
+
+        link.href = objectUrl;
+        link.download = filenameMatch?.[1] ?? "invoice.pdf";
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(objectUrl);
+        return;
+      } catch (caughtError) {
+        console.error("Server PDF generation failed; falling back to print view.", caughtError);
+
+        if (printHref) {
+          setError(
+            caughtError instanceof Error
+              ? `Server PDF failed, opening print fallback. ${caughtError.message}`
+              : "Server PDF failed, opening print fallback.",
+          );
+          window.open(printHref, "_blank", "noopener,noreferrer");
+          return;
+        }
+
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Unable to generate the PDF for this invoice.",
+        );
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+
     if (!containerRef.current) {
       return;
     }
@@ -33,6 +98,9 @@ export function DownloadPdfButton({
 
     try {
       await new Promise((resolve) => window.setTimeout(resolve, 80));
+      if ("fonts" in document) {
+        await document.fonts.ready;
+      }
 
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -54,11 +122,16 @@ export function DownloadPdfButton({
       for (let index = 0; index < blocks.length; index += 1) {
         const block = blocks[index];
         const canvas = await html2canvas(block, {
-          scale: 2, // Higher scale for better text resolution
+          scale: 2,
           backgroundColor: "#ffffff",
           useCORS: true,
           logging: false,
-          windowWidth: 1024, // Force desktop breakpoints
+          width: block.scrollWidth,
+          height: block.scrollHeight,
+          windowWidth: 1280,
+          windowHeight: Math.max(1800, containerRef.current.scrollHeight),
+          scrollX: 0,
+          scrollY: 0,
         });
 
         const imageData = canvas.toDataURL("image/png");
@@ -132,7 +205,8 @@ export function DownloadPdfButton({
         {error ? <p className="text-sm font-medium text-[var(--danger)]">{error}</p> : null}
       </div>
       <div
-        className="pointer-events-none fixed left-[-300vw] top-0 z-[-1] w-[800px] bg-white"
+        className="pointer-events-none fixed left-[-300vw] top-0 z-[-1] w-[980px] bg-white"
+        data-pdf-capture-root
         ref={containerRef}
       >
         <InvoiceDocument invoice={invoice} printable />

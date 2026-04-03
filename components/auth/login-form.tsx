@@ -19,8 +19,9 @@ export function LoginForm() {
     setMessage(null);
 
     const origin =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      (typeof window !== "undefined" ? window.location.origin : "");
+      typeof window !== "undefined"
+        ? window.location.origin
+        : process.env.NEXT_PUBLIC_SITE_URL || "";
 
     const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithOtp({

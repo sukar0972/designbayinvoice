@@ -70,7 +70,9 @@ export function TeamManagement({
     try {
       const invite = await inviteOrganizationMember(inviteEmail);
       const origin =
-        env.siteUrl || (typeof window !== "undefined" ? window.location.origin : "");
+        typeof window !== "undefined"
+          ? window.location.origin
+          : env.siteUrl;
 
       const supabase = createClient();
       const { error: sendError } = await supabase.auth.signInWithOtp({

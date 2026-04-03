@@ -164,7 +164,12 @@ export function InvoiceEditor({
               Print
             </Link>
           )}
-          <DownloadPdfButton className="btn btn-secondary shadow-sm" invoice={invoice} />
+          <DownloadPdfButton
+            className="btn btn-secondary shadow-sm"
+            invoice={invoice}
+            pdfHref={invoice.id ? `/api/invoices/${invoice.id}/pdf` : undefined}
+            printHref={invoice.id ? `/invoices/${invoice.id}/print?autoprint=1` : undefined}
+          />
           <button
             className="btn btn-primary shadow-sm"
             disabled={saving}
