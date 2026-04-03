@@ -12,6 +12,7 @@ type DownloadPdfButtonProps = {
   invoice: InvoiceFormState | InvoiceRecord;
   className?: string;
   label?: string;
+  getPrintHref?: () => string | undefined | Promise<string | undefined>;
   pdfHref?: string;
   printHref?: string;
 };
@@ -20,20 +21,28 @@ export function DownloadPdfButton({
   invoice,
   className,
   label = "Download PDF",
+  getPrintHref,
   pdfHref,
   printHref,
 }: DownloadPdfButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const resolvedPdfHref = pdfHref ?? (invoice.id ? `/api/invoices/${invoice.id}/pdf` : undefined);
 
   async function handleDownload() {
-    if (pdfHref) {
+    if (getPrintHref) {
+      await getPrintHref();
+    } else if (printHref) {
+      void printHref;
+    }
+
+    if (resolvedPdfHref) {
       try {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(pdfHref, {
+        const response = await fetch(resolvedPdfHref, {
           credentials: "include",
         });
 
@@ -66,18 +75,6 @@ export function DownloadPdfButton({
         URL.revokeObjectURL(objectUrl);
         return;
       } catch (caughtError) {
-        console.error("Server PDF generation failed; falling back to print view.", caughtError);
-
-        if (printHref) {
-          setError(
-            caughtError instanceof Error
-              ? `Server PDF failed, opening print fallback. ${caughtError.message}`
-              : "Server PDF failed, opening print fallback.",
-          );
-          window.open(printHref, "_blank", "noopener,noreferrer");
-          return;
-        }
-
         setError(
           caughtError instanceof Error
             ? caughtError.message

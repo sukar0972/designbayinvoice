@@ -18,6 +18,7 @@ import { DownloadPdfButton } from "@/components/invoices/download-pdf-button";
 import { InvoiceDocument } from "@/components/invoices/invoice-document";
 import { canDeleteInvoice, computeInvoiceTotals, formatCurrency } from "@/lib/invoices/calculations";
 import { createLineItem, createPaymentInstruction, createTaxLine } from "@/lib/invoices/defaults";
+import { buildGuestPrintHref, buildGuestPrintStorageKey } from "@/lib/invoices/guest-print";
 import { STATUS_LABELS } from "@/lib/invoices/constants";
 import type { InvoiceFormState, InvoiceRecord, LineItem, PaymentInstruction, TaxLine } from "@/types/domain";
 
@@ -85,6 +86,19 @@ export function InvoiceEditor({
         paymentMethods: nextMethods,
       };
     });
+  }
+
+  function prepareGuestPrint(autoPrint = false) {
+    if (!guestMode || typeof window === "undefined") {
+      return undefined;
+    }
+
+    const draftKey = crypto.randomUUID();
+    window.localStorage.setItem(
+      buildGuestPrintStorageKey(draftKey),
+      JSON.stringify(invoice),
+    );
+    return buildGuestPrintHref(draftKey, autoPrint);
   }
 
   async function handleSave() {
@@ -168,13 +182,27 @@ export function InvoiceEditor({
         </div>
 
         <div className="flex items-center gap-2">
-          {!guestMode && !isNew && (
+          {guestMode ? (
+            <button
+              className="btn btn-secondary shadow-sm"
+              onClick={() => {
+                const href = prepareGuestPrint(true);
+                if (href) {
+                  window.open(href, "_blank", "noopener,noreferrer");
+                }
+              }}
+              type="button"
+            >
+              Print
+            </button>
+          ) : !isNew ? (
             <Link className="btn btn-secondary shadow-sm" href={`/invoices/${invoice.id}/print`} target="_blank">
               Print
             </Link>
-          )}
+          ) : null}
           <DownloadPdfButton
             className="btn btn-secondary shadow-sm"
+            getPrintHref={guestMode ? () => prepareGuestPrint(true) : undefined}
             invoice={invoice}
             pdfHref={invoice.id ? `/api/invoices/${invoice.id}/pdf` : undefined}
             printHref={invoice.id ? `/invoices/${invoice.id}/print?autoprint=1` : undefined}
