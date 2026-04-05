@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
+import { AuthFinishClient } from "@/components/auth/auth-finish-client";
 import { requireUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
 import { ensureOrganizationContextForUser, getPendingInvitesForCurrentUser } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -14,12 +14,7 @@ export default async function AuthFinishPage({
   const { code } = await searchParams;
 
   if (code) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-    if (error) {
-      redirect("/login?error=auth_callback");
-    }
+    return <AuthFinishClient code={code} />;
   }
 
   const { supabase, user } = await requireUser();
