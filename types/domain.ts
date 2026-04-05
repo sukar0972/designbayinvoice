@@ -127,6 +127,10 @@ export type OrganizationInvite = {
   createdAt: string;
 };
 
+export type PendingOrganizationInvite = OrganizationInvite & {
+  organizationName: string;
+};
+
 export type InvoiceFormState = {
   id?: string;
   invoiceNumber?: string | null;

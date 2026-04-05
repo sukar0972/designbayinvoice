@@ -21,6 +21,7 @@ import type {
   OrganizationContext,
   OrganizationInvite,
   OrganizationMember,
+  PendingOrganizationInvite,
   PaymentInstruction,
   SettingsSnapshot,
   TaxLine,
@@ -56,6 +57,10 @@ type OrganizationInviteRow = {
   accepted_at: string | null;
   accepted_by_user_id: string | null;
   created_at: string;
+};
+
+type PendingOrganizationInviteRow = OrganizationInviteRow & {
+  organization_name: string | null;
 };
 
 type BusinessProfileRow = {
@@ -154,6 +159,15 @@ function mapOrganizationInviteRow(row: OrganizationInviteRow): OrganizationInvit
     acceptedAt: row.accepted_at,
     acceptedByUserId: row.accepted_by_user_id,
     createdAt: row.created_at,
+  };
+}
+
+function mapPendingOrganizationInviteRow(
+  row: PendingOrganizationInviteRow,
+): PendingOrganizationInvite {
+  return {
+    ...mapOrganizationInviteRow(row),
+    organizationName: row.organization_name?.trim() || "Workspace",
   };
 }
 
@@ -360,6 +374,26 @@ async function getPendingInvitesForEmail(
   return (data ?? []).map(mapOrganizationInviteRow);
 }
 
+async function expireStalePendingInvitesForEmail(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  email: string,
+) {
+  if (!email) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("organization_invites")
+    .update({ status: "expired" })
+    .eq("email", normalizeEmail(email))
+    .eq("status", "pending")
+    .lte("expires_at", new Date().toISOString());
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 async function ensureBusinessProfileForOrganization(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
   organizationId: string,
@@ -453,6 +487,8 @@ export async function ensureOrganizationContextForUser(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
   user: User,
 ): Promise<OrganizationContext | null> {
+  await expireStalePendingInvitesForEmail(supabase, user.email ?? "");
+
   let membership = await getActiveMembershipForUserId(supabase, user.id);
 
   if (!membership) {
@@ -490,7 +526,8 @@ export async function requireOrganizationContext() {
   const context = await ensureOrganizationContextForUser(supabase, user);
 
   if (!context) {
-    redirect("/login");
+    const pendingInvites = await getPendingInvitesForEmail(supabase, user.email ?? "");
+    redirect(pendingInvites.length > 0 ? "/join" : "/login");
   }
 
   return {
@@ -498,6 +535,21 @@ export async function requireOrganizationContext() {
     user,
     ...context,
   };
+}
+
+export async function getPendingInvitesForCurrentUser() {
+  const { supabase, user } = await requireUser();
+  await expireStalePendingInvitesForEmail(supabase, user.email ?? "");
+
+  const { data, error } = await supabase.rpc("get_pending_invites_for_current_user");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as PendingOrganizationInviteRow[]).map(
+    mapPendingOrganizationInviteRow,
+  );
 }
 
 export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
@@ -618,16 +670,9 @@ export async function getNewInvoiceSeed(duplicateId?: string) {
   };
 }
 
-export async function acceptOrganizationInviteForCurrentUser(
-  token: string | undefined,
+export async function acceptOrganizationInviteByIdForCurrentUser(
+  inviteId: string,
 ): Promise<InviteAcceptanceResult> {
-  if (!token) {
-    return {
-      ok: false,
-      reason: "missing_token",
-    };
-  }
-
   const { supabase, user } = await requireUser();
   const normalizedUserEmail = normalizeEmail(user.email ?? "");
 
@@ -640,15 +685,15 @@ export async function acceptOrganizationInviteForCurrentUser(
     };
   }
 
-  const { data, error } = await supabase.rpc("lookup_invite_by_token", {
-    invite_token: token,
-  });
+  const { data: inviteRow, error } = await supabase
+    .from("organization_invites")
+    .select("*")
+    .eq("id", inviteId)
+    .maybeSingle<OrganizationInviteRow>();
 
   if (error) {
     throw new Error(error.message);
   }
-
-  const inviteRow = Array.isArray(data) ? data[0] : data;
 
   if (!inviteRow) {
     return {
@@ -657,7 +702,7 @@ export async function acceptOrganizationInviteForCurrentUser(
     };
   }
 
-  const invite = mapOrganizationInviteRow(inviteRow as OrganizationInviteRow);
+  const invite = mapOrganizationInviteRow(inviteRow);
 
   if (invite.status === "revoked") {
     return { ok: false, reason: "revoked" };

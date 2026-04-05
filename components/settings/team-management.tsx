@@ -10,9 +10,6 @@ import {
   removeOrganizationMember,
   revokeOrganizationInvite,
 } from "@/app/actions";
-import { env } from "@/lib/env";
-import { buildInviteRedirectUrl } from "@/lib/organizations";
-import { createClient } from "@/lib/supabase/client";
 import type {
   OrganizationInvite,
   OrganizationMember,
@@ -69,29 +66,11 @@ export function TeamManagement({
 
     try {
       const invite = await inviteOrganizationMember(inviteEmail);
-      const origin =
-        typeof window !== "undefined"
-          ? window.location.origin
-          : env.siteUrl;
-
-      const supabase = createClient();
-      const { error: sendError } = await supabase.auth.signInWithOtp({
-        email: invite.email,
-        options: {
-          emailRedirectTo: buildInviteRedirectUrl(origin, invite.token),
-        },
-      });
-
-      if (sendError) {
-        setError(
-          "Invite was created, but the email could not be sent. You can retry with the same address.",
-        );
-        router.refresh();
-        return;
-      }
 
       setInviteEmail("");
-      setMessage(`Invite sent to ${invite.email}. It will expire in 7 days.`);
+      setMessage(
+        `Invite recorded for ${invite.email}. Ask them to sign in with Google using that exact email within 7 days.`,
+      );
       router.refresh();
     } catch (inviteError) {
       setError(
