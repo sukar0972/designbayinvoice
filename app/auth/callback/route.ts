@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const code = url.searchParams.get("code");
   const requestedNext = url.searchParams.get("next");
   const next =
-    requestedNext && requestedNext.startsWith("/") ? requestedNext : "/dashboard";
+    requestedNext && requestedNext.startsWith("/") ? requestedNext : "/auth/finish";
   const origin = getRedirectOrigin(request);
 
   if (code) {
