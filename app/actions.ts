@@ -5,7 +5,7 @@ import { ZodError, z } from "zod";
 
 import { requireUser } from "@/lib/auth";
 import {
-  acceptOrganizationInviteForCurrentUser,
+  acceptOrganizationInviteByIdForCurrentUser,
   requireOrganizationContext,
   serializeBusinessProfile,
   serializeInvoice,
@@ -406,7 +406,6 @@ export async function inviteOrganizationMember(email: string) {
     .eq("status", "pending")
     .maybeSingle<{
       id: string;
-      token: string;
       expires_at: string;
       status: "pending";
     }>();
@@ -420,7 +419,6 @@ export async function inviteOrganizationMember(email: string) {
       return {
         id: existingInvite.id,
         email: normalizedEmail,
-        token: existingInvite.token,
         expiresAt: existingInvite.expires_at,
       };
     }
@@ -441,8 +439,8 @@ export async function inviteOrganizationMember(email: string) {
       expires_at: expiresAt,
       status: "pending",
     })
-    .select("id, token, expires_at")
-    .single<{ id: string; token: string; expires_at: string }>();
+    .select("id, expires_at")
+    .single<{ id: string; expires_at: string }>();
 
   if (error) {
     throw new Error(error.message);
@@ -453,7 +451,6 @@ export async function inviteOrganizationMember(email: string) {
   return {
     id: data.id,
     email: normalizedEmail,
-    token: data.token,
     expiresAt: data.expires_at,
   };
 }
@@ -509,12 +506,13 @@ export async function removeOrganizationMember(memberId: string) {
 }
 
 export async function acceptOrganizationInvite(
-  token: string,
+  inviteId: string,
 ): Promise<InviteAcceptanceResult> {
-  const result = await acceptOrganizationInviteForCurrentUser(token);
+  const result = await acceptOrganizationInviteByIdForCurrentUser(inviteId);
 
   if (result.ok) {
     revalidatePath("/dashboard");
+    revalidatePath("/join");
     revalidatePath("/settings");
   }
 

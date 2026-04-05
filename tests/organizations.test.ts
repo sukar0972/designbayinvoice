@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildInviteAcceptPath,
-  buildInviteRedirectUrl,
   findPendingInviteByEmail,
   isInviteExpired,
   normalizeEmail,
@@ -20,13 +18,6 @@ describe("organization invite helpers", () => {
     expect(isInviteExpired("2026-04-02T11:59:59.000Z", now)).toBe(true);
     expect(isInviteExpired("2026-04-02T12:00:00.000Z", now)).toBe(true);
     expect(isInviteExpired("2026-04-02T12:00:01.000Z", now)).toBe(false);
-  });
-
-  it("builds the nested auth callback redirect for invite acceptance", () => {
-    expect(buildInviteAcceptPath("token-123")).toBe("/invite/accept?token=token-123");
-    expect(buildInviteRedirectUrl("https://designbayinvoice.netlify.app", "token-123")).toBe(
-      "https://designbayinvoice.netlify.app/auth/callback?next=%2Finvite%2Faccept%3Ftoken%3Dtoken-123",
-    );
   });
 
   it("finds pending invites case-insensitively", () => {
