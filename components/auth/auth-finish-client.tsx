@@ -3,14 +3,11 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/client";
 
-type AuthFinishClientProps = {
-  code: string;
-};
-
-export function AuthFinishClient({ code }: AuthFinishClientProps) {
+export function AuthFinishClient() {
   const router = useRouter();
   const [message, setMessage] = useState("Completing Google sign-in...");
 
@@ -19,20 +16,58 @@ export function AuthFinishClient({ code }: AuthFinishClientProps) {
 
     async function completeSignIn() {
       const supabase = createClient();
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const finishWithSession = async () => {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
 
-      if (error) {
-        router.replace("/login?error=auth_callback");
+        if (error) {
+          router.replace("/login?error=auth_callback");
+          return true;
+        }
+
+        if (!session) {
+          return false;
+        }
+
+        if (!active) {
+          return true;
+        }
+
+        setMessage("Redirecting to your workspace...");
+        router.replace("/dashboard");
+        router.refresh();
+        return true;
+      };
+
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(
+        async (_event: AuthChangeEvent, session: Session | null) => {
+        if (!session || !active) {
+          return;
+        }
+
+        setMessage("Redirecting to your workspace...");
+        router.replace("/dashboard");
+        router.refresh();
+        },
+      );
+
+      if (await finishWithSession()) {
+        subscription.unsubscribe();
         return;
       }
 
-      if (!active) {
-        return;
-      }
-
-      setMessage("Redirecting to your workspace...");
-      router.replace("/dashboard");
-      router.refresh();
+      // Allow the browser client to auto-complete the PKCE exchange from the URL.
+      window.setTimeout(async () => {
+        const handled = await finishWithSession();
+        if (!handled && active) {
+          router.replace("/login?error=auth_callback");
+        }
+        subscription.unsubscribe();
+      }, 500);
     }
 
     completeSignIn();
@@ -40,7 +75,7 @@ export function AuthFinishClient({ code }: AuthFinishClientProps) {
     return () => {
       active = false;
     };
-  }, [code, router]);
+  }, [router]);
 
   return (
     <main className="min-h-screen bg-[var(--background)] flex items-center justify-center px-4 py-16">

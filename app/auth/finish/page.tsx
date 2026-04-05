@@ -14,7 +14,7 @@ export default async function AuthFinishPage({
   const { code } = await searchParams;
 
   if (code) {
-    return <AuthFinishClient code={code} />;
+    return <AuthFinishClient />;
   }
 
   const { supabase, user } = await requireUser();
