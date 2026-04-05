@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/client";
 
 export function AuthFinishClient() {
-  const router = useRouter();
   const [message, setMessage] = useState("Completing Google sign-in...");
 
   useEffect(() => {
@@ -16,6 +14,10 @@ export function AuthFinishClient() {
 
     async function completeSignIn() {
       const supabase = createClient();
+      const finishRouting = () => {
+        window.location.replace("/auth/finish");
+      };
+
       const finishWithSession = async () => {
         const {
           data: { session },
@@ -23,7 +25,7 @@ export function AuthFinishClient() {
         } = await supabase.auth.getSession();
 
         if (error) {
-          router.replace("/login?error=auth_callback");
+          window.location.replace("/login?error=auth_callback");
           return true;
         }
 
@@ -36,8 +38,7 @@ export function AuthFinishClient() {
         }
 
         setMessage("Redirecting to your workspace...");
-        router.replace("/dashboard");
-        router.refresh();
+        finishRouting();
         return true;
       };
 
@@ -50,8 +51,7 @@ export function AuthFinishClient() {
         }
 
         setMessage("Redirecting to your workspace...");
-        router.replace("/dashboard");
-        router.refresh();
+        finishRouting();
         },
       );
 
@@ -64,7 +64,7 @@ export function AuthFinishClient() {
       window.setTimeout(async () => {
         const handled = await finishWithSession();
         if (!handled && active) {
-          router.replace("/login?error=auth_callback");
+          window.location.replace("/login?error=auth_callback");
         }
         subscription.unsubscribe();
       }, 500);
@@ -75,7 +75,7 @@ export function AuthFinishClient() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, []);
 
   return (
     <main className="min-h-screen bg-[var(--background)] flex items-center justify-center px-4 py-16">
