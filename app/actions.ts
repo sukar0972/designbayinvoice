@@ -16,7 +16,7 @@ import {
   computeInvoiceTotals,
   deriveInvoiceStatus,
 } from "@/lib/invoices/calculations";
-import { formatZodError } from "@/lib/invoices/errors";
+import { formatZodError, toUserFacingError } from "@/lib/invoices/errors";
 import { businessProfileSchema, invoiceSchema } from "@/lib/invoices/validation";
 import { normalizeEmail } from "@/lib/organizations";
 import type {
@@ -27,6 +27,10 @@ import type {
 } from "@/types/domain";
 
 const inviteEmailSchema = z.string().trim().email();
+
+type ActionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
 
 async function reserveInvoiceNumber(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
@@ -85,107 +89,107 @@ export async function saveBusinessProfile(input: BusinessProfileForm) {
 }
 
 export async function createInvoiceDraft(input: InvoiceFormState) {
-  let invoice: InvoiceFormState;
-
   try {
-    invoice = invoiceSchema.parse(input);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      throw new Error(formatZodError(error));
-    }
+    const invoice = invoiceSchema.parse(input);
+    const { supabase, organization } = await requireOrganizationContext();
 
-    throw error;
-  }
+    const reservation = await reserveInvoiceNumber(supabase);
+    const status = deriveInvoiceStatus(
+      invoice.status,
+      invoice.amountPaid,
+      computeInvoiceTotals(invoice).totalAmount,
+    );
 
-  const { supabase, organization } = await requireOrganizationContext();
-
-  const reservation = await reserveInvoiceNumber(supabase);
-  const status = deriveInvoiceStatus(
-    invoice.status,
-    invoice.amountPaid,
-    computeInvoiceTotals(invoice).totalAmount,
-  );
-
-  const payload = {
-    organization_id: organization.id,
-    invoice_number: reservation.invoiceNumber,
-    sequence_number: reservation.sequenceNumber,
-    ...serializeInvoice({
-      ...invoice,
-      status,
-    }),
-    issued_at: status === "draft" ? null : new Date().toISOString(),
-    paid_at: status === "paid" ? new Date().toISOString() : null,
-  };
-
-  const { data, error } = await supabase
-    .from("invoices")
-    .insert(payload)
-    .select("id, invoice_number")
-    .single<{ id: string; invoice_number: string }>();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidatePath("/dashboard");
-
-  return {
-    id: data.id,
-    invoiceNumber: data.invoice_number,
-  };
-}
-
-export async function updateInvoice(input: InvoiceFormState & { id: string }) {
-  let invoice: InvoiceFormState & { id: string };
-
-  try {
-    invoice = invoiceSchema.extend({ id: invoiceSchema.shape.id.unwrap() }).parse(input);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      throw new Error(formatZodError(error));
-    }
-
-    throw error;
-  }
-
-  const { supabase, organization } = await requireOrganizationContext();
-
-  const { data: existing, error: existingError } = await supabase
-    .from("invoices")
-    .select("status, issued_at, paid_at")
-    .eq("organization_id", organization.id)
-    .eq("id", invoice.id)
-    .single<{ status: InvoiceStatus; issued_at: string | null; paid_at: string | null }>();
-
-  if (existingError) {
-    throw new Error(existingError.message);
-  }
-
-  const totals = computeInvoiceTotals(invoice);
-  const status = deriveInvoiceStatus(invoice.status, invoice.amountPaid, totals.totalAmount);
-
-  const { error } = await supabase
-    .from("invoices")
-    .update({
+    const payload = {
+      organization_id: organization.id,
+      invoice_number: reservation.invoiceNumber,
+      sequence_number: reservation.sequenceNumber,
       ...serializeInvoice({
         ...invoice,
         status,
       }),
-      issued_at:
-        existing.issued_at ?? (status === "draft" ? null : new Date().toISOString()),
-      paid_at: status === "paid" ? existing.paid_at ?? new Date().toISOString() : null,
-    })
-    .eq("organization_id", organization.id)
-    .eq("id", invoice.id);
+      issued_at: status === "draft" ? null : new Date().toISOString(),
+      paid_at: status === "paid" ? new Date().toISOString() : null,
+    };
 
-  if (error) {
-    throw new Error(error.message);
+    const { data, error } = await supabase
+      .from("invoices")
+      .insert(payload)
+      .select("id, invoice_number")
+      .single<{ id: string; invoice_number: string }>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/dashboard");
+
+    return {
+      ok: true,
+      data: {
+        id: data.id,
+        invoiceNumber: data.invoice_number,
+      },
+    } satisfies ActionResult<{ id: string; invoiceNumber: string }>;
+  } catch (error) {
+    return {
+      ok: false,
+      error: toUserFacingError(error).message,
+    } satisfies ActionResult<{ id: string; invoiceNumber: string }>;
   }
+}
 
-  revalidatePath("/dashboard");
-  revalidatePath(`/invoices/${invoice.id}`);
-  revalidatePath(`/invoices/${invoice.id}/print`);
+export async function updateInvoice(input: InvoiceFormState & { id: string }) {
+  try {
+    const invoice = invoiceSchema.extend({ id: invoiceSchema.shape.id.unwrap() }).parse(input);
+    const { supabase, organization } = await requireOrganizationContext();
+
+    const { data: existing, error: existingError } = await supabase
+      .from("invoices")
+      .select("status, issued_at, paid_at")
+      .eq("organization_id", organization.id)
+      .eq("id", invoice.id)
+      .single<{ status: InvoiceStatus; issued_at: string | null; paid_at: string | null }>();
+
+    if (existingError) {
+      throw new Error(existingError.message);
+    }
+
+    const totals = computeInvoiceTotals(invoice);
+    const status = deriveInvoiceStatus(invoice.status, invoice.amountPaid, totals.totalAmount);
+
+    const { error } = await supabase
+      .from("invoices")
+      .update({
+        ...serializeInvoice({
+          ...invoice,
+          status,
+        }),
+        issued_at:
+          existing.issued_at ?? (status === "draft" ? null : new Date().toISOString()),
+        paid_at: status === "paid" ? existing.paid_at ?? new Date().toISOString() : null,
+      })
+      .eq("organization_id", organization.id)
+      .eq("id", invoice.id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/dashboard");
+    revalidatePath(`/invoices/${invoice.id}`);
+    revalidatePath(`/invoices/${invoice.id}/print`);
+
+    return {
+      ok: true,
+      data: null,
+    } satisfies ActionResult<null>;
+  } catch (error) {
+    return {
+      ok: false,
+      error: toUserFacingError(error).message,
+    } satisfies ActionResult<null>;
+  }
 }
 
 export async function duplicateInvoice(id: string) {

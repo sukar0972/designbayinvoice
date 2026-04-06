@@ -112,23 +112,35 @@ export function InvoiceEditor({
 
     try {
       if (isNew) {
-        const created = await createInvoiceDraft(invoice);
-        router.replace(`/invoices/${created.id}`);
+        const result = await createInvoiceDraft(invoice);
+
+        if (!result.ok) {
+          setMessage(result.error);
+          return;
+        }
+
+        router.replace(`/invoices/${result.data.id}`);
         router.refresh();
         return;
       }
 
-      await updateInvoice({
+      const result = await updateInvoice({
         ...invoice,
         id: invoice.id!,
       });
+
+      if (!result.ok) {
+        setMessage(result.error);
+        return;
+      }
+
       setMessage("Invoice saved.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Save failed.");
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
   }
 
   async function handleDeleteDraft() {
