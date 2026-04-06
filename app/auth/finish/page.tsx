@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { AuthFinishClient } from "@/app/auth/finish/auth-finish-client";
 import { requireUser } from "@/lib/auth";
 import { ensureOrganizationContextForUser, getPendingInvitesForCurrentUser } from "@/lib/data";
 
@@ -13,13 +14,7 @@ export default async function AuthFinishPage({
   const { code, next } = await searchParams;
 
   if (code) {
-    const callbackParams = new URLSearchParams({ code });
-
-    if (next && next.startsWith("/")) {
-      callbackParams.set("next", next);
-    }
-
-    redirect(`/auth/callback?${callbackParams.toString()}`);
+    return <AuthFinishClient code={code} next={next} />;
   }
 
   const { supabase, user } = await requireUser();
