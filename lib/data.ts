@@ -115,6 +115,10 @@ function asArray<T>(value: unknown) {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+function isDuplicateKeyError(error: { code?: string; message: string } | null) {
+  return error?.code === "23505" || error?.message.includes("duplicate key value");
+}
+
 function asNumber(value: string | number | null | undefined) {
   return Number(value ?? 0);
 }
@@ -442,44 +446,26 @@ async function bootstrapOrganizationForUser(
 
   const { error: organizationError } = await supabase
     .from("organizations")
-    .upsert({
+    .insert({
       id: user.id,
       owner_user_id: user.id,
       name: empty.companyName,
     });
 
-  if (organizationError) {
+  if (organizationError && !isDuplicateKeyError(organizationError)) {
     throw new Error(organizationError.message);
   }
 
-  const { error: membershipError } = await supabase
-    .from("organization_members")
-    .upsert(
-      {
-        organization_id: user.id,
-        user_id: user.id,
-        email: normalizedEmail,
-        role: "owner",
-        status: "active",
-      },
-      {
-        onConflict: "organization_id,user_id",
-      },
-    );
+  const { error: membershipError } = await supabase.from("organization_members").insert({
+    organization_id: user.id,
+    user_id: user.id,
+    email: normalizedEmail,
+    role: "owner",
+    status: "active",
+  });
 
-  if (membershipError) {
+  if (membershipError && !isDuplicateKeyError(membershipError)) {
     throw new Error(membershipError.message);
-  }
-
-  const { error: profileError } = await supabase
-    .from("business_profiles")
-    .upsert({
-      organization_id: user.id,
-      ...serializeBusinessProfile(empty),
-    });
-
-  if (profileError) {
-    throw new Error(profileError.message);
   }
 }
 

@@ -1,5 +1,7 @@
 # DesignBayInvoice
 
+[![Netlify Status](https://api.netlify.com/api/v1/badges/8b55565b-eb0a-4e15-a5f2-e9eea6d31335/deploy-status)](https://app.netlify.com/projects/designbayinvoice/deploys)
+
 DesignBayInvoice is a Next.js invoice generator for Canadian businesses. It uses Supabase for auth, database, and storage, and is structured to stay lightweight enough for a Netlify Free v1 deployment.
 
 ## Stack
