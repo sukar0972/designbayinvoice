@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { createInvoiceDraft, deleteDraftInvoice, recordPayment, updateInvoice } from "@/app/actions";
 import { DownloadPdfButton } from "@/components/invoices/download-pdf-button";
 import { InvoiceDocument } from "@/components/invoices/invoice-document";
+import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { canDeleteInvoice, computeInvoiceTotals, formatCurrency } from "@/lib/invoices/calculations";
 import { createLineItem, createPaymentInstruction, createTaxLine } from "@/lib/invoices/defaults";
 import { buildGuestPrintHref, buildGuestPrintStorageKey } from "@/lib/invoices/guest-print";
@@ -25,6 +26,7 @@ import type { InvoiceFormState, InvoiceRecord, LineItem, PaymentInstruction, Tax
 type InvoiceEditorProps = {
   backHref?: string;
   guestMode?: boolean;
+  initialMessage?: string | null;
   initialInvoice: InvoiceFormState | InvoiceRecord;
   isNew: boolean;
 };
@@ -32,15 +34,17 @@ type InvoiceEditorProps = {
 export function InvoiceEditor({
   backHref = "/dashboard",
   guestMode = false,
+  initialMessage = null,
   initialInvoice,
   isNew,
 }: InvoiceEditorProps) {
   const router = useRouter();
   const [invoice, setInvoice] = useState<InvoiceFormState | InvoiceRecord>(initialInvoice);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(initialMessage);
   const [saving, setSaving] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const deferredInvoice = useDeferredValue(invoice);
   const totals = useMemo(() => computeInvoiceTotals(invoice), [invoice]);
@@ -119,7 +123,7 @@ export function InvoiceEditor({
           return;
         }
 
-        router.replace(`/invoices/${result.data.id}`);
+        router.replace(`/invoices/${result.data.id}?saved=1`);
         router.refresh();
         return;
       }
@@ -144,12 +148,13 @@ export function InvoiceEditor({
   }
 
   async function handleDeleteDraft() {
-    if (!invoice.id || !window.confirm("Delete this draft invoice?")) {
+    if (!invoice.id) {
       return;
     }
 
     try {
       await deleteDraftInvoice(invoice.id);
+      setDeleteDialogOpen(false);
       router.push("/dashboard");
       router.refresh();
     } catch (error) {
@@ -539,7 +544,11 @@ export function InvoiceEditor({
           </article>
 
           {!isNew && canDeleteInvoice(invoice.status) ? (
-            <button className="btn btn-danger w-full shadow-sm" onClick={handleDeleteDraft} type="button">
+            <button
+              className="btn btn-danger w-full shadow-sm"
+              onClick={() => setDeleteDialogOpen(true)}
+              type="button"
+            >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete draft invoice
             </button>
@@ -570,6 +579,15 @@ export function InvoiceEditor({
           </div>
         </section>
       </div>
+      <ConfirmDialog
+        cancelLabel="Keep draft"
+        confirmLabel="Delete draft"
+        description="This draft will be removed permanently from your workspace."
+        onCancel={() => setDeleteDialogOpen(false)}
+        onConfirm={() => startTransition(handleDeleteDraft)}
+        open={deleteDialogOpen}
+        title="Delete this draft invoice?"
+      />
     </div>
   );
 }
