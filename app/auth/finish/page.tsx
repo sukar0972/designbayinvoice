@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 
-import { AuthFinishClient } from "@/components/auth/auth-finish-client";
 import { requireUser } from "@/lib/auth";
 import { ensureOrganizationContextForUser, getPendingInvitesForCurrentUser } from "@/lib/data";
 
@@ -9,12 +8,18 @@ export const dynamic = "force-dynamic";
 export default async function AuthFinishPage({
   searchParams,
 }: {
-  searchParams: Promise<{ code?: string }>;
+  searchParams: Promise<{ code?: string; next?: string }>;
 }) {
-  const { code } = await searchParams;
+  const { code, next } = await searchParams;
 
   if (code) {
-    return <AuthFinishClient />;
+    const callbackParams = new URLSearchParams({ code });
+
+    if (next && next.startsWith("/")) {
+      callbackParams.set("next", next);
+    }
+
+    redirect(`/auth/callback?${callbackParams.toString()}`);
   }
 
   const { supabase, user } = await requireUser();

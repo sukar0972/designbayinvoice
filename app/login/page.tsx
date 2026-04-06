@@ -47,6 +47,14 @@ export default async function LoginPage({
         <div className="card-surface px-4 py-8 sm:px-10">
           <LoginForm initialError={getLoginErrorMessage(error)} />
         </div>
+        <div className="mt-4 text-center text-xs leading-6 text-[var(--muted)]">
+          By continuing, you agree to the{" "}
+          <Link href="/terms" className="font-medium text-[var(--accent)] hover:text-[var(--accent-strong)]">
+            terms and disclaimer
+          </Link>
+          . DesignBayInvoice is provided as is, and you remain responsible for reviewing all
+          invoices, taxes, and exports before relying on them.
+        </div>
       </div>
     </main>
   );

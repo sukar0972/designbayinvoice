@@ -137,6 +137,31 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      <footer className="border-t border-[var(--border)] bg-[#f8faf9]">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-3 px-4 py-6 text-sm text-[var(--muted)] sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+            <Link
+              className="font-medium text-[var(--foreground)] underline-offset-4 hover:text-[var(--accent)] hover:underline"
+              href="/terms"
+            >
+              Terms and disclaimer
+            </Link>
+            <a
+              className="font-medium text-[var(--foreground)] underline-offset-4 hover:text-[var(--accent)] hover:underline"
+              href="https://www.netlify.com/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              This site is powered by Netlify
+            </a>
+          </div>
+          <p className="max-w-3xl text-center text-xs leading-6 text-[var(--muted)]">
+            DesignBayInvoice is provided as is. You are responsible for reviewing invoices, taxes,
+            client details, exports, and compliance requirements before relying on any output.
+          </p>
+        </div>
+      </footer>
     </main>
   );
 }
