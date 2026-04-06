@@ -33,6 +33,32 @@ function createCallbackClient(request: NextRequest, response: NextResponse) {
   });
 }
 
+function createNavigationResponse(pathname: string, origin: string) {
+  const destination = new URL(pathname, origin);
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="0;url=${destination.toString()}" />
+    <title>Redirecting…</title>
+  </head>
+  <body>
+    <script>
+      window.location.replace(${JSON.stringify(destination.toString())});
+    </script>
+  </body>
+</html>`;
+
+  return new NextResponse(html, {
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store, max-age=0",
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -40,9 +66,7 @@ export async function GET(request: NextRequest) {
   const next =
     requestedNext && requestedNext.startsWith("/") ? requestedNext : "/auth/finish";
   const origin = getRedirectOrigin(request);
-  const nextUrl = new URL(next, origin);
-  const errorUrl = new URL("/login?error=auth_callback", origin);
-  const response = NextResponse.redirect(nextUrl);
+  const response = createNavigationResponse(next, origin);
 
   if (code) {
     const supabase = createCallbackClient(request, response);
@@ -55,7 +79,7 @@ export async function GET(request: NextRequest) {
         status: error.status,
       });
 
-      const errorResponse = NextResponse.redirect(errorUrl);
+      const errorResponse = createNavigationResponse("/login?error=auth_callback", origin);
       const errorClient = createCallbackClient(request, errorResponse);
       await errorClient.auth.signOut();
       return errorResponse;
