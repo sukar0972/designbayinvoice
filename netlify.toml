@@ -7,6 +7,3 @@ NETLIFY_NEXT_SKEW_PROTECTION = "true"
 
 [functions]
 included_files = ["node_modules/@sparticuz/chromium/bin/**"]
-
-[[plugins]]
-package = "@netlify/plugin-nextjs"
