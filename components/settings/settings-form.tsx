@@ -15,6 +15,14 @@ import type {
 
 import { TeamManagement } from "@/components/settings/team-management";
 
+const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/svg+xml",
+]);
+
 type SettingsFormProps = {
   currentMembership: OrganizationMember;
   initialInvites: OrganizationInvite[];
@@ -46,6 +54,18 @@ export function SettingsForm({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      setMessage("Invalid logo format. Use PNG, JPG, WebP, or SVG.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_LOGO_FILE_SIZE) {
+      setMessage("Logo file is too large. Maximum size is 2 MB.");
+      event.target.value = "";
+      return;
+    }
+
     setUploading(true);
     setMessage(null);
 
@@ -71,6 +91,7 @@ export function SettingsForm({
     }
 
     setUploading(false);
+    event.target.value = "";
   }
 
   async function handleSave() {
@@ -115,7 +136,12 @@ export function SettingsForm({
             <label className="btn btn-secondary text-xs !py-1 !px-2 cursor-pointer shadow-sm">
               {uploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ImageUp className="h-3 w-3 mr-1" />}
               Upload Logo
-              <input className="hidden" onChange={handleLogoUpload} type="file" accept="image/*" />
+              <input
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleLogoUpload}
+                type="file"
+              />
             </label>
           </div>
 

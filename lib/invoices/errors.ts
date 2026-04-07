@@ -4,6 +4,7 @@ const PATH_LABELS: Record<string, string> = {
   "billTo.name": "Client name",
   "billTo.address1": "Client address line 1",
   "companySnapshot.companyName": "Business profile company name",
+  lineItems: "Line items",
 };
 
 function pathToLabel(path: Array<string | number>) {

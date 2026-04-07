@@ -17,11 +17,11 @@ export const paymentInstructionSchema = z.object({
 });
 
 export const billToSchema = z.object({
-  name: z.string().trim().min(1, "Client name is required."),
+  name: z.string().default(""),
   attention: z.string().optional().default(""),
   email: z.string().email().or(z.literal("")).optional().default(""),
   phone: z.string().optional().default(""),
-  address1: z.string().trim().min(1, "Address line 1 is required."),
+  address1: z.string().default(""),
   address2: z.string().optional().default(""),
   city: z.string().optional().default(""),
   province: z.string().optional().default(""),
@@ -30,7 +30,7 @@ export const billToSchema = z.object({
 });
 
 export const companySnapshotSchema = z.object({
-  companyName: z.string().trim().min(1, "Company name is required."),
+  companyName: z.string().default(""),
   email: z.string().email().or(z.literal("")).optional().default(""),
   phone: z.string().optional().default(""),
   address1: z.string().optional().default(""),
@@ -47,7 +47,7 @@ export const companySnapshotSchema = z.object({
 
 export const lineItemSchema = z.object({
   id: z.string().min(1),
-  description: z.string().trim().min(1, "Each line item needs a description."),
+  description: z.string().default(""),
   quantity: z.coerce.number().min(0),
   unitPrice: z.coerce.number().min(0),
 });
@@ -69,11 +69,58 @@ export const invoiceSchema = z.object({
   projectReference: z.string().default(""),
   billTo: billToSchema,
   companySnapshot: companySnapshotSchema,
-  lineItems: z.array(lineItemSchema).min(1),
+  lineItems: z.array(lineItemSchema).default([]),
   taxLines: z.array(taxLineSchema).default([]),
   paymentMethods: z.array(paymentInstructionSchema).default([]),
   notes: z.string().default(""),
   amountPaid: z.coerce.number().min(0),
+}).superRefine((invoice, ctx) => {
+  if (invoice.status === "draft") {
+    return;
+  }
+
+  if (invoice.billTo.name.trim().length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Client name is required.",
+      path: ["billTo", "name"],
+    });
+  }
+
+  if (invoice.billTo.address1.trim().length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Address line 1 is required.",
+      path: ["billTo", "address1"],
+    });
+  }
+
+  if (invoice.companySnapshot.companyName.trim().length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Company name is required.",
+      path: ["companySnapshot", "companyName"],
+    });
+  }
+
+  if (invoice.lineItems.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "At least one line item is required.",
+      path: ["lineItems"],
+    });
+    return;
+  }
+
+  invoice.lineItems.forEach((item, index) => {
+    if (item.description.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Each line item needs a description.",
+        path: ["lineItems", index, "description"],
+      });
+    }
+  });
 });
 
 export const businessProfileSchema = z.object({

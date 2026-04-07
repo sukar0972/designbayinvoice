@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 
 import { deleteDraftInvoice, toggleInvoicePaidState } from "@/app/actions";
 import { DownloadPdfButton } from "@/components/invoices/download-pdf-button";
+import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { formatCurrency, isOverdue } from "@/lib/invoices/calculations";
 import { STATUS_LABELS } from "@/lib/invoices/constants";
 import type { InvoiceRecord } from "@/types/domain";
@@ -43,6 +44,7 @@ export function DashboardClient({
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [deleteTarget, setDeleteTarget] = useState<InvoiceRecord | null>(null);
 
   const stats = useMemo(() => {
     const outstanding = invoices.reduce((sum, invoice) => sum + invoice.balanceDue, 0);
@@ -241,19 +243,7 @@ export function DashboardClient({
                             <button
                               className="btn btn-secondary !p-1.5 shadow-sm text-[#d82c0d] hover:bg-[#fed3d1] hover:border-[#fed3d1]"
                               disabled={pending}
-                              onClick={() => {
-                                if (window.confirm("Delete draft invoice?")) {
-                                  startTransition(async () => {
-                                    try {
-                                      await deleteDraftInvoice(invoice.id);
-                                      setMessage(`Deleted ${invoice.invoiceNumber}`);
-                                      router.refresh();
-                                    } catch (error) {
-                                      setMessage(error instanceof Error ? error.message : "Error deleting draft");
-                                    }
-                                  });
-                                }
-                              }}
+                              onClick={() => setDeleteTarget(invoice)}
                               title="Delete"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -269,6 +259,35 @@ export function DashboardClient({
           </>
         )}
       </div>
+      <ConfirmDialog
+        cancelLabel="Keep draft"
+        confirmLabel="Delete draft"
+        description={
+          deleteTarget
+            ? `${deleteTarget.invoiceNumber} will be removed permanently. This action cannot be undone.`
+            : undefined
+        }
+        loading={pending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (!deleteTarget) {
+            return;
+          }
+
+          startTransition(async () => {
+            try {
+              await deleteDraftInvoice(deleteTarget.id);
+              setMessage(`Deleted ${deleteTarget.invoiceNumber}`);
+              setDeleteTarget(null);
+              router.refresh();
+            } catch (error) {
+              setMessage(error instanceof Error ? error.message : "Error deleting draft");
+            }
+          });
+        }}
+        open={deleteTarget !== null}
+        title="Delete this draft invoice?"
+      />
     </div>
   );
 }
