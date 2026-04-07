@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { LoginForm } from "@/components/auth/login-form";
+import { BrandMark } from "@/components/site/brand-mark";
 import { getOptionalSession } from "@/lib/auth";
 import { ensureOrganizationContextForUser } from "@/lib/data";
 
@@ -40,9 +41,7 @@ export default async function LoginPage({
     <main className="min-h-screen bg-[var(--background)] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center mb-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded bg-[var(--accent)] text-white shadow-sm">
-            <span className="font-bold text-xl leading-none">D</span>
-          </div>
+          <BrandMark className="h-10 w-10" />
         </div>
         <h2 className="text-center text-2xl font-semibold tracking-tight text-[var(--foreground)]">
           Sign in to your account
@@ -84,6 +83,10 @@ export default async function LoginPage({
           By continuing, you agree to the{" "}
           <Link href="/terms" className="font-medium text-[var(--accent)] hover:text-[var(--accent-strong)]">
             terms and disclaimer
+          </Link>
+          {" "}and{" "}
+          <Link href="/privacy" className="font-medium text-[var(--accent)] hover:text-[var(--accent-strong)]">
+            privacy policy
           </Link>
           . DesignBayInvoice is provided as is, and you remain responsible for reviewing all
           invoices, taxes, and exports before relying on them.
