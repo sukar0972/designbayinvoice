@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 
-import logoImage from "@/logo/logo.png";
+import logoImage from "@/logo/logo.svg";
 
 type BrandMarkProps = {
   className?: string;
@@ -10,12 +10,10 @@ type BrandMarkProps = {
 
 export function BrandMark({ className = "h-9 w-9" }: BrandMarkProps) {
   return (
-    <div
-      className={`relative overflow-hidden rounded-md border border-[rgba(0,0,0,0.08)] bg-[#0f5c44] shadow-sm ${className}`}
-    >
+    <div className={`relative shrink-0 ${className}`}>
       <Image
         alt="DesignBayInvoice logo"
-        className="object-cover"
+        className="object-contain"
         fill
         priority
         sizes="40px"
