@@ -1,25 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useDeferredValue, useMemo, useState } from "react";
+import { startTransition, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Loader2,
   Plus,
   Trash2,
-  Eye,
-  Pencil,
-  FileText
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { createInvoiceDraft, deleteDraftInvoice, recordPayment, updateInvoice } from "@/app/actions";
 import { DownloadPdfButton } from "@/components/invoices/download-pdf-button";
-import { InvoiceDocument } from "@/components/invoices/invoice-document";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { canDeleteInvoice, computeInvoiceTotals, formatCurrency } from "@/lib/invoices/calculations";
 import { createLineItem, createPaymentInstruction, createTaxLine } from "@/lib/invoices/defaults";
 import { buildGuestPrintHref, buildGuestPrintStorageKey } from "@/lib/invoices/guest-print";
+import { isCardPaymentMethod } from "@/lib/invoices/payment-links";
 import { STATUS_LABELS } from "@/lib/invoices/constants";
 import type { InvoiceFormState, InvoiceRecord, LineItem, PaymentInstruction, TaxLine } from "@/types/domain";
 
@@ -43,10 +40,7 @@ export function InvoiceEditor({
   const [message, setMessage] = useState<string | null>(initialMessage);
   const [saving, setSaving] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [mobileTab, setMobileTab] = useState<"edit" | "preview">("edit");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
-  const deferredInvoice = useDeferredValue(invoice);
   const totals = useMemo(() => computeInvoiceTotals(invoice), [invoice]);
 
   function updateInvoiceField<K extends keyof InvoiceFormState>(key: K, value: InvoiceFormState[K]) {
@@ -178,7 +172,7 @@ export function InvoiceEditor({
   }
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto relative pb-20 md:pb-0">
+    <div className="relative mx-auto max-w-5xl space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sticky top-0 bg-[var(--background)] z-30 py-4 border-b border-[var(--border)] -mt-4 px-1 md:-mt-8 md:pt-8 mb-6">
         <div className="flex items-center gap-4">
           <Link className="p-2 -ml-2 rounded-md hover:bg-[#ebeef0] text-[var(--muted)] transition-colors" href={backHref} title="Go back">
@@ -213,8 +207,12 @@ export function InvoiceEditor({
               Print
             </button>
           ) : !isNew ? (
-            <Link className="btn btn-secondary shadow-sm" href={`/invoices/${invoice.id}/print`} target="_blank">
-              Print
+            <Link
+              className="btn btn-secondary shadow-sm"
+              href={`/invoices/${invoice.id}/print?autoprint=1`}
+              target="_blank"
+            >
+              Print/preview
             </Link>
           ) : null}
           <DownloadPdfButton
@@ -256,27 +254,8 @@ export function InvoiceEditor({
         </div>
       )}
 
-      {/* Mobile Tabs */}
-      <div className="print-shell-hidden md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--border)] p-3 flex gap-2 z-40 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-        <button
-          className={`flex-1 flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors ${mobileTab === "edit" ? "bg-[var(--accent)] text-white" : "bg-[#f4f6f8] text-[var(--foreground)]"}`}
-          onClick={() => setMobileTab("edit")}
-          type="button"
-        >
-          <Pencil className="h-4 w-4" /> Edit
-        </button>
-        <button
-          className={`flex-1 flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors ${mobileTab === "preview" ? "bg-[var(--accent)] text-white" : "bg-[#f4f6f8] text-[var(--foreground)]"}`}
-          onClick={() => setMobileTab("preview")}
-          type="button"
-        >
-          <Eye className="h-4 w-4" /> Preview
-        </button>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-[1fr_minmax(350px,400px)] xl:grid-cols-[1fr_minmax(450px,0.85fr)] items-start">
-        {/* Editor Column */}
-        <section className={`space-y-6 ${mobileTab === "preview" ? "hidden md:block" : ""}`}>
+      <div className="space-y-6">
+        <section className="space-y-6">
           
           <article className="card-surface overflow-hidden">
             <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb]">
@@ -453,10 +432,52 @@ export function InvoiceEditor({
                 <div className="space-y-4 mb-6">
                   {invoice.paymentMethods.map((method, index) => (
                     <div className="p-4 rounded-md border border-[var(--border)] bg-[#fafbfb]" key={method.id}>
+                      {(() => {
+                        const isCardMethod = isCardPaymentMethod(method.label);
+
+                        return (
+                          <>
                       <div className="flex items-start gap-4">
                         <div className="flex-1 space-y-3">
                           <input className="field bg-white" placeholder="Method label" value={method.label} onChange={(event) => updatePaymentMethod(index, { label: event.target.value })} />
                           <input className="field bg-white" placeholder="Instructions" value={method.details} onChange={(event) => updatePaymentMethod(index, { details: event.target.value })} />
+                          {isCardMethod ? (
+                            <>
+                              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                                <div>
+                                  <label className="field-label">Stripe payment link</label>
+                                  <input
+                                    className="field bg-white"
+                                    inputMode="url"
+                                    placeholder="https://buy.stripe.com/..."
+                                    value={method.stripePaymentLink ?? ""}
+                                    onChange={(event) =>
+                                      updatePaymentMethod(index, {
+                                        stripePaymentLink: event.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <label className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)] sm:pb-2">
+                                  <input
+                                    checked={Boolean(method.stripeQrEnabled)}
+                                    disabled={!(method.stripePaymentLink ?? "").trim()}
+                                    onChange={(event) =>
+                                      updatePaymentMethod(index, {
+                                        stripeQrEnabled: event.target.checked,
+                                      })
+                                    }
+                                    type="checkbox"
+                                  />
+                                  Show QR code
+                                </label>
+                              </div>
+                              <p className="text-xs leading-5 text-[var(--muted)]">
+                                QR codes are generated from the saved Stripe link at print time. The QR
+                                asset is not stored in your database.
+                              </p>
+                            </>
+                          ) : null}
                           <label className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
                             <input
                               checked={Boolean(method.processingFeeEnabled)}
@@ -515,6 +536,9 @@ export function InvoiceEditor({
                           </button>
                         </div>
                       </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -553,30 +577,6 @@ export function InvoiceEditor({
               Delete draft invoice
             </button>
           ) : null}
-        </section>
-
-        {/* Preview Column */}
-        <section className={`space-y-6 ${mobileTab === "edit" ? "hidden md:block" : ""}`}>
-          <div className="sticky top-28">
-            <article className="card-surface overflow-hidden mb-6 hidden md:block">
-              <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
-                <h2 className="text-base font-semibold flex items-center gap-2"><FileText className="h-4 w-4" /> Live preview</h2>
-                {!guestMode && invoice.id ? (
-                  <Link href={`/invoices/${invoice.id}/print`} target="_blank" className="text-xs text-[var(--accent)] hover:underline font-medium">Open in new tab</Link>
-                ) : null}
-              </div>
-              <div className="p-0 bg-[#ebeef0] flex justify-center py-8 px-4 overflow-hidden h-[calc(100vh-280px)] overflow-y-auto">
-                <div className="scale-[0.65] lg:scale-[0.75] origin-top md:origin-top w-[860px] pointer-events-none select-none">
-                  <InvoiceDocument invoice={deferredInvoice} />
-                </div>
-              </div>
-            </article>
-
-            {/* Mobile Preview View */}
-            <div className="md:hidden">
-              <InvoiceDocument invoice={deferredInvoice} />
-            </div>
-          </div>
         </section>
       </div>
       <ConfirmDialog

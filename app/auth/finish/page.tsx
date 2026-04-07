@@ -30,5 +30,5 @@ export default async function AuthFinishPage({
   }
 
   const pendingInvites = await getPendingInvitesForCurrentUser();
-  redirect(pendingInvites.length > 0 ? "/join" : "/login");
+  redirect(pendingInvites.length > 0 ? "/workspaces" : "/login");
 }

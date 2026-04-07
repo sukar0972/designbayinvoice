@@ -1,4 +1,23 @@
 import { z } from "zod";
+import { isCardPaymentMethod } from "@/lib/invoices/payment-links";
+
+const stripePaymentLinkSchema = z
+  .string()
+  .trim()
+  .max(500, "Stripe payment link must be 500 characters or fewer.")
+  .default("")
+  .refine((value) => {
+    if (!value) {
+      return true;
+    }
+
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "Stripe payment link must be a valid HTTPS URL.");
 
 export const taxRegistrationSchema = z.object({
   id: z.string().min(1),
@@ -14,6 +33,34 @@ export const paymentInstructionSchema = z.object({
   processingFeeEnabled: z.boolean().default(false),
   processingFeePercent: z.coerce.number().min(0).default(0),
   processingFeeFlatAmount: z.coerce.number().min(0).default(0),
+  stripePaymentLink: stripePaymentLinkSchema,
+  stripeQrEnabled: z.boolean().default(false),
+}).superRefine((method, ctx) => {
+  const isCardMethod = isCardPaymentMethod(method.label);
+
+  if (!isCardMethod && method.stripePaymentLink.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Stripe payment links are only available for card payment methods.",
+      path: ["stripePaymentLink"],
+    });
+  }
+
+  if (method.stripeQrEnabled && method.stripePaymentLink.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Add a Stripe payment link before enabling a QR code.",
+      path: ["stripeQrEnabled"],
+    });
+  }
+
+  if (!isCardMethod && method.stripeQrEnabled) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "QR codes are only available for card payment methods.",
+      path: ["stripeQrEnabled"],
+    });
+  }
 });
 
 export const billToSchema = z.object({

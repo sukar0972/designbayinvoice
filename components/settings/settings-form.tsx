@@ -6,6 +6,7 @@ import { HelpCircle, ImageUp, Loader2, Trash2 } from "lucide-react";
 
 import { saveBusinessProfile } from "@/app/actions";
 import { createPaymentInstruction } from "@/lib/invoices/defaults";
+import { isCardPaymentMethod } from "@/lib/invoices/payment-links";
 import { createClient } from "@/lib/supabase/client";
 import type {
   BusinessProfileForm,
@@ -313,6 +314,11 @@ export function SettingsForm({
               <div className="space-y-4">
                 {profile.defaultPaymentMethods.map((method, index) => (
                   <div className="p-4 rounded-md border border-[var(--border)] bg-[#fafbfb]" key={method.id}>
+                    {(() => {
+                      const isCardMethod = isCardPaymentMethod(method.label);
+
+                      return (
+                        <>
                     <div className="flex items-start gap-4">
                       <div className="flex-1 space-y-3">
                         <input
@@ -335,6 +341,49 @@ export function SettingsForm({
                             updateField("defaultPaymentMethods", next);
                           }}
                         />
+                        {isCardMethod ? (
+                          <>
+                            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                              <div>
+                                <label className="field-label">Stripe payment link</label>
+                                <input
+                                  className="field"
+                                  inputMode="url"
+                                  placeholder="https://buy.stripe.com/..."
+                                  value={method.stripePaymentLink ?? ""}
+                                  onChange={(event) => {
+                                    const next = [...profile.defaultPaymentMethods];
+                                    next[index] = {
+                                      ...method,
+                                      stripePaymentLink: event.target.value,
+                                    };
+                                    updateField("defaultPaymentMethods", next);
+                                  }}
+                                />
+                              </div>
+                              <label className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)] sm:pb-2">
+                                <input
+                                  checked={Boolean(method.stripeQrEnabled)}
+                                  disabled={!(method.stripePaymentLink ?? "").trim()}
+                                  onChange={(event) => {
+                                    const next = [...profile.defaultPaymentMethods];
+                                    next[index] = {
+                                      ...method,
+                                      stripeQrEnabled: event.target.checked,
+                                    };
+                                    updateField("defaultPaymentMethods", next);
+                                  }}
+                                  type="checkbox"
+                                />
+                                Show QR code
+                              </label>
+                            </div>
+                            <p className="text-xs leading-5 text-[var(--muted)]">
+                              The app stores only the HTTPS payment link. The QR code is generated from
+                              that link when the invoice is rendered, and stays well under 1 MB.
+                            </p>
+                          </>
+                        ) : null}
                         <label className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
                           <input
                             checked={Boolean(method.processingFeeEnabled)}
@@ -421,6 +470,9 @@ export function SettingsForm({
                         </button>
                       </div>
                     </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
