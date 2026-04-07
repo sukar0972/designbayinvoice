@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 
 import { requireUser } from "@/lib/auth";
-import { normalizeEmail, isInviteExpired } from "@/lib/organizations";
+import { normalizeEmail } from "@/lib/organizations";
 import { computeInvoiceTotals } from "@/lib/invoices/calculations";
 import { EMPTY_COMPANY_PROFILE } from "@/lib/invoices/constants";
 import {
@@ -61,6 +61,20 @@ type OrganizationInviteRow = {
 
 type PendingOrganizationInviteRow = OrganizationInviteRow & {
   organization_name: string | null;
+};
+
+type AcceptOrganizationInviteRpcRow = {
+  ok: boolean;
+  reason:
+    | "invalid"
+    | "expired"
+    | "revoked"
+    | "accepted"
+    | "already_member"
+    | "email_mismatch"
+    | null;
+  organization_id: string | null;
+  invited_email: string | null;
 };
 
 type BusinessProfileRow = {
@@ -659,130 +673,57 @@ export async function getNewInvoiceSeed(duplicateId?: string) {
 export async function acceptOrganizationInviteByIdForCurrentUser(
   inviteId: string,
 ): Promise<InviteAcceptanceResult> {
-  const { supabase, user } = await requireUser();
-  const normalizedUserEmail = normalizeEmail(user.email ?? "");
-
-  const activeMembership = await getActiveMembershipForUserId(supabase, user.id);
-
-  if (activeMembership) {
-    return {
-      ok: false,
-      reason: "already_member",
-    };
-  }
-
-  const { data: inviteRow, error } = await supabase
-    .from("organization_invites")
-    .select("*")
-    .eq("id", inviteId)
-    .maybeSingle<OrganizationInviteRow>();
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.rpc(
+    "accept_organization_invite_for_current_user",
+    {
+      invite_id: inviteId,
+    },
+  );
 
   if (error) {
     throw new Error(error.message);
   }
 
-  if (!inviteRow) {
+  const result = (Array.isArray(data) ? data[0] : data) as AcceptOrganizationInviteRpcRow | null;
+
+  if (!result) {
     return {
       ok: false,
       reason: "invalid",
     };
   }
 
-  const invite = mapOrganizationInviteRow(inviteRow);
-
-  if (invite.status === "revoked") {
-    return { ok: false, reason: "revoked" };
+  if (result.ok && result.organization_id) {
+    return {
+      ok: true,
+      organizationId: result.organization_id,
+    };
   }
 
-  if (invite.status === "accepted") {
-    return { ok: false, reason: "accepted" };
-  }
-
-  if (invite.status === "expired") {
-    return { ok: false, reason: "expired" };
-  }
-
-  if (normalizeEmail(invite.email) !== normalizedUserEmail) {
+  if (result.reason === "email_mismatch") {
     return {
       ok: false,
       reason: "email_mismatch",
-      invitedEmail: invite.email,
+      invitedEmail: result.invited_email ?? "",
     };
   }
 
-  if (isInviteExpired(invite.expiresAt)) {
-    await supabase
-      .from("organization_invites")
-      .update({ status: "expired" })
-      .eq("id", invite.id);
-
+  if (
+    result.reason === "already_member" ||
+    result.reason === "accepted" ||
+    result.reason === "expired" ||
+    result.reason === "invalid" ||
+    result.reason === "revoked"
+  ) {
     return {
       ok: false,
-      reason: "expired",
+      reason: result.reason,
     };
   }
 
-  const { data: existingMembership, error: membershipError } = await supabase
-    .from("organization_members")
-    .select("*")
-    .eq("organization_id", invite.organizationId)
-    .eq("user_id", user.id)
-    .maybeSingle<OrganizationMemberRow>();
-
-  if (membershipError) {
-    throw new Error(membershipError.message);
-  }
-
-  if (existingMembership) {
-    const { error: reactivateError } = await supabase
-      .from("organization_members")
-      .update({
-        email: normalizedUserEmail,
-        role: "member",
-        status: "active",
-      })
-      .eq("id", existingMembership.id);
-
-    if (reactivateError) {
-      throw new Error(reactivateError.message);
-    }
-  } else {
-    const { error: insertError } = await supabase
-      .from("organization_members")
-      .insert({
-        organization_id: invite.organizationId,
-        user_id: user.id,
-        email: normalizedUserEmail,
-        role: "member",
-        status: "active",
-      });
-
-    if (insertError) {
-      throw new Error(insertError.message);
-    }
-  }
-
-  const { error: acceptError } = await supabase
-    .from("organization_invites")
-    .update({
-      status: "accepted",
-      accepted_at: new Date().toISOString(),
-      accepted_by_user_id: user.id,
-    })
-    .eq("id", invite.id);
-
-  if (acceptError) {
-    throw new Error(acceptError.message);
-  }
-
-  await ensureBusinessProfileForOrganization(
-    supabase,
-    invite.organizationId,
-    user.email ?? "",
-  );
-
   return {
-    ok: true,
-    organizationId: invite.organizationId,
+    ok: false,
+    reason: "invalid",
   };
 }
