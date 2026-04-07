@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { AlertCircle, Bug, Loader2, Send, X } from "lucide-react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 
@@ -19,7 +19,6 @@ function encodeFormData(fields: Record<string, string>) {
 
 export function ReportIssueFooter() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<SubmissionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -38,12 +37,9 @@ export function ReportIssueFooter() {
       return;
     }
 
-    const search = searchParams.toString();
-    const nextUrl = `${window.location.origin}${pathname}${search ? `?${search}` : ""}`;
-
-    setPageUrl(nextUrl);
+    setPageUrl(window.location.href);
     setBrowser(window.navigator.userAgent);
-  }, [pathname, searchParams]);
+  }, [pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
