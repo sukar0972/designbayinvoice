@@ -195,7 +195,7 @@ export async function createInvoiceDraft(input: InvoiceFormState) {
 
 export async function updateInvoice(input: InvoiceFormState & { id: string }) {
   try {
-    const invoice = invoiceSchema.extend({ id: invoiceSchema.shape.id.unwrap() }).parse(input);
+    const invoice = invoiceSchema.safeExtend({ id: invoiceSchema.shape.id.unwrap() }).parse(input);
     const { supabase, organization } = await requireOrganizationContext();
 
     const { data: existing, error: existingError } = await supabase
