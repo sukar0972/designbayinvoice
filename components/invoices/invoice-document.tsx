@@ -7,6 +7,11 @@ import {
   formatLongDate,
 } from "@/lib/invoices/calculations";
 import { STATUS_LABELS } from "@/lib/invoices/constants";
+import {
+  getStripePaymentQrDataUrl,
+  isCardPaymentMethod,
+  normalizeStripePaymentLink,
+} from "@/lib/invoices/payment-links";
 
 type InvoiceDocumentProps = {
   invoice: InvoiceFormState | InvoiceRecord;
@@ -26,15 +31,15 @@ export function InvoiceDocument({
     <article
       className={`mx-auto bg-white text-[#111827] ${
         printable
-          ? "invoice-document w-[210mm] max-w-none px-4"
+          ? "invoice-document w-[210mm] min-h-[297mm] max-w-none border border-[#d9dde3] px-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] print:min-h-0 print:border-0 print:shadow-none"
           : "max-w-[1000px] rounded-lg shadow-sm border border-[#e5e7eb] overflow-hidden"
       }`}
     >
       <div className={`${printable ? "p-4" : "p-8 sm:p-10 md:p-12"}`}>
         {/* Header Grid: Company Info | Bill To | Invoice Details */}
-        <header className="grid grid-cols-1 sm:grid-cols-3 gap-6 pb-6 border-b-2 border-[#111827]" data-pdf-block>
+        <header className="grid grid-cols-1 gap-6 border-b-2 border-[#111827] pb-6 sm:grid-cols-3" data-pdf-block>
           {/* Column 1: Company Info */}
-          <div className="flex flex-col gap-4">
+          <div className="min-w-0 flex flex-col gap-4">
             {invoice.companySnapshot.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -43,10 +48,12 @@ export function InvoiceDocument({
                 src={invoice.companySnapshot.logoUrl}
               />
             ) : null}
-            <div className="text-sm text-[#4b5563] space-y-0.5">
-              <p className="font-bold text-[#111827] text-base mb-1">{invoice.companySnapshot.companyName || "Your Company"}</p>
-              {invoice.companySnapshot.address1 ? <p>{invoice.companySnapshot.address1}</p> : null}
-              {invoice.companySnapshot.address2 ? <p>{invoice.companySnapshot.address2}</p> : null}
+            <div className="space-y-0.5 text-sm text-[#4b5563]">
+              <p className="mb-1 break-words text-base font-bold text-[#111827]">
+                {invoice.companySnapshot.companyName || "Your Company"}
+              </p>
+              {invoice.companySnapshot.address1 ? <p className="break-words">{invoice.companySnapshot.address1}</p> : null}
+              {invoice.companySnapshot.address2 ? <p className="break-words">{invoice.companySnapshot.address2}</p> : null}
               {(invoice.companySnapshot.city || invoice.companySnapshot.province || invoice.companySnapshot.postalCode) ? (
                 <p>
                   {[invoice.companySnapshot.city, invoice.companySnapshot.province, invoice.companySnapshot.postalCode]
@@ -54,23 +61,27 @@ export function InvoiceDocument({
                     .join(", ")}
                 </p>
               ) : null}
-              {invoice.companySnapshot.country ? <p>{invoice.companySnapshot.country}</p> : null}
-              {invoice.companySnapshot.email ? <p className="mt-2 text-[#111827]">{invoice.companySnapshot.email}</p> : null}
-              {invoice.companySnapshot.phone ? <p className="text-[#111827]">{invoice.companySnapshot.phone}</p> : null}
+              {invoice.companySnapshot.country ? <p className="break-words">{invoice.companySnapshot.country}</p> : null}
+              {invoice.companySnapshot.email ? (
+                <p className="mt-2 break-words text-[#111827] [overflow-wrap:anywhere]">
+                  {invoice.companySnapshot.email}
+                </p>
+              ) : null}
+              {invoice.companySnapshot.phone ? <p className="break-words text-[#111827]">{invoice.companySnapshot.phone}</p> : null}
             </div>
           </div>
 
           {/* Column 2: Bill To & Project */}
-          <div className="flex flex-col gap-5">
-            <div>
+          <div className="min-w-0 flex flex-col gap-5">
+            <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wider text-[#6b7280] mb-1.5">Billed To</p>
-              <h2 className="text-base font-bold text-[#111827] mb-1">
+              <h2 className="mb-1 break-words text-base font-bold text-[#111827]">
                 {invoice.billTo.name || "Client Name"}
               </h2>
               <div className="space-y-0.5 text-sm text-[#4b5563]">
-                {invoice.billTo.attention ? <p>Attn: {invoice.billTo.attention}</p> : null}
-                {invoice.billTo.address1 ? <p>{invoice.billTo.address1}</p> : null}
-                {invoice.billTo.address2 ? <p>{invoice.billTo.address2}</p> : null}
+                {invoice.billTo.attention ? <p className="break-words">Attn: {invoice.billTo.attention}</p> : null}
+                {invoice.billTo.address1 ? <p className="break-words">{invoice.billTo.address1}</p> : null}
+                {invoice.billTo.address2 ? <p className="break-words">{invoice.billTo.address2}</p> : null}
                 {(invoice.billTo.city || invoice.billTo.province || invoice.billTo.postalCode) ? (
                   <p>
                     {[invoice.billTo.city, invoice.billTo.province, invoice.billTo.postalCode]
@@ -78,23 +89,27 @@ export function InvoiceDocument({
                       .join(", ")}
                   </p>
                 ) : null}
-                {invoice.billTo.country ? <p>{invoice.billTo.country}</p> : null}
-                {invoice.billTo.email ? <p className="mt-1 text-[#111827]">{invoice.billTo.email}</p> : null}
+                {invoice.billTo.country ? <p className="break-words">{invoice.billTo.country}</p> : null}
+                {invoice.billTo.email ? (
+                  <p className="mt-1 break-words text-[#111827] [overflow-wrap:anywhere]">
+                    {invoice.billTo.email}
+                  </p>
+                ) : null}
               </div>
             </div>
 
             {invoice.projectReference && (
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-wider text-[#6b7280] mb-1">Project</p>
-                <p className="text-sm font-semibold text-[#111827]">{invoice.projectReference}</p>
+                <p className="break-words text-sm font-semibold text-[#111827]">{invoice.projectReference}</p>
               </div>
             )}
           </div>
 
           {/* Column 3: Invoice Meta */}
-          <div className="flex flex-col sm:items-end text-left sm:text-right">
+          <div className="min-w-0 text-left sm:text-right flex flex-col sm:items-end">
             <h1 className="text-4xl font-bold tracking-tight text-[#111827] uppercase mb-1">Invoice</h1>
-            <p className="text-lg font-medium text-[#4b5563] mb-5">
+            <p className="mb-5 break-words text-lg font-medium text-[#4b5563]">
               #{invoice.invoiceNumber || "Pending"}
             </p>
 
@@ -161,15 +176,52 @@ export function InvoiceDocument({
         <section className="grid grid-cols-1 sm:grid-cols-[1fr_minmax(260px,auto)] gap-10 pt-6 border-t-2 border-[#111827]" data-pdf-block>
           
           {/* Left: Notes & Info */}
-          <div className="space-y-6 order-2 sm:order-1">
+          <div className="order-2 min-w-0 space-y-6 sm:order-1">
             {invoice.paymentMethods.length > 0 && (
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-wider text-[#6b7280] mb-2">Payment Instructions</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {invoice.paymentMethods.map((method) => (
-                    <div key={method.id} className="text-sm text-[#4b5563]">
-                      <p className="font-bold text-[#111827] mb-0.5">{method.label}</p>
-                      {method.details && <p className="whitespace-pre-wrap leading-snug text-[13px]">{method.details}</p>}
+                  {invoice.paymentMethods.map((method) => {
+                    const stripePaymentLink = isCardPaymentMethod(method.label)
+                      ? normalizeStripePaymentLink(method.stripePaymentLink)
+                      : "";
+                    const stripeQrDataUrl = method.stripeQrEnabled
+                      ? getStripePaymentQrDataUrl(method.stripePaymentLink)
+                      : null;
+
+                    return (
+                      <div key={method.id} className="min-w-0 text-sm text-[#4b5563]">
+                      <p className="mb-0.5 break-words font-bold text-[#111827]">{method.label}</p>
+                      {method.details ? (
+                        <p className="whitespace-pre-wrap break-words leading-snug text-[13px] [overflow-wrap:anywhere]">
+                          {method.details}
+                        </p>
+                      ) : null}
+                      {stripePaymentLink ? (
+                        <div className="mt-3 space-y-2">
+                          <a
+                            className="inline-flex text-[13px] font-semibold text-[#008060] underline-offset-4 hover:underline"
+                            href={stripePaymentLink}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            Pay securely online
+                          </a>
+                          {stripeQrDataUrl ? (
+                            <div className="inline-flex flex-col items-start gap-2 rounded border border-[#e5e7eb] bg-white p-2">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                alt={`${method.label} QR code`}
+                                className="h-28 w-28 bg-white object-contain"
+                                src={stripeQrDataUrl}
+                              />
+                              <p className="text-[11px] uppercase tracking-[0.12em] text-[#6b7280]">
+                                Scan to pay
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {method.processingFeeEnabled ? (
                         <div className="mt-2 space-y-1 text-[12px] leading-snug text-[#6b7280]">
                           <p>
@@ -183,16 +235,17 @@ export function InvoiceDocument({
                           </p>
                         </div>
                       ) : null}
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
             {invoice.notes && (
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-wider text-[#6b7280] mb-2">Notes</p>
-                <p className="whitespace-pre-wrap text-[13px] text-[#4b5563] leading-snug">
+                <p className="whitespace-pre-wrap break-words text-[13px] text-[#4b5563] leading-snug [overflow-wrap:anywhere]">
                   {invoice.notes}
                 </p>
               </div>

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ArrowRight, BadgeDollarSign, FileOutput, ShieldCheck, Smartphone, CheckCircle2 } from "lucide-react";
 import { redirect } from "next/navigation";
 
-import { SignOutButton } from "@/components/auth/sign-out-button";
 import { getOptionalSession } from "@/lib/auth";
 import { ensureOrganizationContextForUser } from "@/lib/data";
 
@@ -31,7 +30,6 @@ const highlights = [
 
 export default async function HomePage() {
   const { supabase, user } = await getOptionalSession();
-  let hasIncompleteSession = false;
 
   if (user) {
     try {
@@ -40,11 +38,7 @@ export default async function HomePage() {
       if (context) {
         redirect("/dashboard");
       }
-
-      hasIncompleteSession = true;
-    } catch {
-      hasIncompleteSession = true;
-    }
+    } catch {}
   }
 
   return (
@@ -58,33 +52,18 @@ export default async function HomePage() {
             </div>
             <span className="font-semibold text-[var(--foreground)] tracking-tight">DesignBayInvoice</span>
           </div>
-          <Link className="btn btn-secondary text-sm px-4" href="/login">
-            Sign in
-          </Link>
+          <div className="flex items-center gap-3">
+            {user ? (
+              <Link className="btn btn-primary text-sm px-4" href="/dashboard">
+                Dashboard
+              </Link>
+            ) : null}
+            <Link className="btn btn-secondary text-sm px-4" href="/login">
+              Sign in
+            </Link>
+          </div>
         </div>
       </header>
-
-      {hasIncompleteSession ? (
-        <section className="border-b border-[#fec5c3] bg-[#fff4f3]">
-          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-            <div>
-              <p className="text-sm font-medium text-[#8a1c08]">
-                Your previous sign-in did not finish cleanly.
-              </p>
-              <p className="mt-1 text-sm text-[#8a1c08]">
-                Retry Google sign-in from the login page, or sign out first to clear the current
-                browser session.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link className="btn btn-primary" href="/login">
-                Go to login
-              </Link>
-              <SignOutButton />
-            </div>
-          </div>
-        </section>
-      ) : null}
 
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-8 items-center">
@@ -172,31 +151,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      <footer className="border-t border-[var(--border)] bg-[#f8faf9]">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-3 px-4 py-6 text-sm text-[var(--muted)] sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-            <Link
-              className="font-medium text-[var(--foreground)] underline-offset-4 hover:text-[var(--accent)] hover:underline"
-              href="/terms"
-            >
-              Terms and disclaimer
-            </Link>
-            <a
-              className="font-medium text-[var(--foreground)] underline-offset-4 hover:text-[var(--accent)] hover:underline"
-              href="https://www.netlify.com/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              This site is powered by Netlify
-            </a>
-          </div>
-          <p className="max-w-3xl text-center text-xs leading-6 text-[var(--muted)]">
-            DesignBayInvoice is provided as is. You are responsible for reviewing invoices, taxes,
-            client details, exports, and compliance requirements before relying on any output.
-          </p>
-        </div>
-      </footer>
     </main>
   );
 }

@@ -44,6 +44,8 @@ export type PaymentInstruction = {
   processingFeeEnabled?: boolean;
   processingFeePercent?: number;
   processingFeeFlatAmount?: number;
+  stripePaymentLink?: string;
+  stripeQrEnabled?: boolean;
 };
 
 export type BillTo = {

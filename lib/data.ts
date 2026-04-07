@@ -483,25 +483,12 @@ async function bootstrapOrganizationForUser(
   }
 }
 
-export async function ensureOrganizationContextForUser(
+export async function getOrganizationContextForUser(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
   user: User,
 ): Promise<OrganizationContext | null> {
   await expireStalePendingInvitesForEmail(supabase, user.email ?? "");
-
-  let membership = await getActiveMembershipForUserId(supabase, user.id);
-
-  if (!membership) {
-    const [hasAnyMembership, pendingInvites] = await Promise.all([
-      getAnyMembershipForUserId(supabase, user.id),
-      getPendingInvitesForEmail(supabase, user.email ?? ""),
-    ]);
-
-    if (!hasAnyMembership && pendingInvites.length === 0) {
-      await bootstrapOrganizationForUser(supabase, user);
-      membership = await getActiveMembershipForUserId(supabase, user.id);
-    }
-  }
+  const membership = await getActiveMembershipForUserId(supabase, user.id);
 
   if (!membership) {
     return null;
@@ -521,13 +508,36 @@ export async function ensureOrganizationContextForUser(
   };
 }
 
+export async function ensureOrganizationContextForUser(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  user: User,
+): Promise<OrganizationContext | null> {
+  let context = await getOrganizationContextForUser(supabase, user);
+
+  if (context) {
+    return context;
+  }
+
+  const [hasAnyMembership, pendingInvites] = await Promise.all([
+    getAnyMembershipForUserId(supabase, user.id),
+    getPendingInvitesForEmail(supabase, user.email ?? ""),
+  ]);
+
+  if (!hasAnyMembership && pendingInvites.length === 0) {
+    await bootstrapOrganizationForUser(supabase, user);
+    context = await getOrganizationContextForUser(supabase, user);
+  }
+
+  return context;
+}
+
 export async function requireOrganizationContext() {
   const { supabase, user } = await requireUser();
-  const context = await ensureOrganizationContextForUser(supabase, user);
+  const context = await getOrganizationContextForUser(supabase, user);
 
   if (!context) {
     const pendingInvites = await getPendingInvitesForEmail(supabase, user.email ?? "");
-    redirect(pendingInvites.length > 0 ? "/join" : "/login");
+    redirect(pendingInvites.length > 0 ? "/workspaces" : "/login");
   }
 
   return {

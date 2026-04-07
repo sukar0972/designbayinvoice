@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Figtree } from "next/font/google";
 import "./globals.css";
+import { ReportIssueFooter } from "@/components/site/report-issue-footer";
 
 const figtree = Figtree({
   variable: "--font-figtree",
@@ -22,7 +23,10 @@ export default function RootLayout({
       lang="en"
       className={`${figtree.variable} h-full scroll-smooth antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <ReportIssueFooter />
+      </body>
     </html>
   );
 }

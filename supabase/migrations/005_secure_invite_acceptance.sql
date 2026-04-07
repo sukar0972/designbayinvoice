@@ -89,8 +89,8 @@ begin
   select *
   into existing_org_membership
   from public.organization_members
-  where organization_id = invite_record.organization_id
-    and user_id = current_user_id
+  where public.organization_members.organization_id = invite_record.organization_id
+    and public.organization_members.user_id = current_user_id
   limit 1;
 
   if found then

@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Settings2, Menu, X } from "lucide-react";
+import { FileText, LayoutDashboard, Settings2, Users, Menu, X } from "lucide-react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 
 type AppShellProps = {
   companyName?: string;
   email?: string;
+  hasOrganization?: boolean;
   children: React.ReactNode;
 };
 
@@ -17,6 +18,11 @@ const links = [
     href: "/dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    href: "/workspaces",
+    label: "Workspaces",
+    icon: Users,
   },
   {
     href: "/invoices/new",
@@ -30,11 +36,19 @@ const links = [
   },
 ];
 
-export function AppShell({ companyName, email, children }: AppShellProps) {
+export function AppShell({
+  companyName,
+  email,
+  hasOrganization = true,
+  children,
+}: AppShellProps) {
   const [mobileMenuPathname, setMobileMenuPathname] = useState<string | null>(null);
   const pathname = usePathname();
   const isMobileMenuOpen = mobileMenuPathname === pathname;
-  const resolvedCompanyName = companyName?.trim() || "Your Company";
+  const resolvedCompanyName = companyName?.trim() || (hasOrganization ? "Your Company" : "Pending workspace");
+  const visibleLinks = hasOrganization
+    ? links
+    : links.filter((link) => link.href === "/dashboard" || link.href === "/workspaces");
 
   return (
     <div className="min-h-screen bg-[var(--background)] flex flex-col md:flex-row">
@@ -86,7 +100,7 @@ export function AppShell({ companyName, email, children }: AppShellProps) {
         </div>
 
         <nav className="p-3 flex-1 space-y-1 overflow-y-auto mt-4 md:mt-0">
-          {links.map(({ href, label, icon: Icon }) => {
+          {visibleLinks.map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
             return (
               <Link
@@ -115,7 +129,7 @@ export function AppShell({ companyName, email, children }: AppShellProps) {
             </div>
             <div className="flex flex-col truncate">
               <span className="text-xs font-medium text-[var(--foreground)] truncate">{email || "Admin"}</span>
-              <span className="text-[10px] text-[var(--muted)]">Admin</span>
+              <span className="text-[10px] text-[var(--muted)]">{hasOrganization ? "Admin" : "Invited"}</span>
             </div>
           </div>
           <SignOutButton />

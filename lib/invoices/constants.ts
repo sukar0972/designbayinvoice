@@ -17,11 +17,13 @@ export const DEFAULT_PAYMENT_METHODS: PaymentInstruction[] = [
   {
     id: "card",
     label: "Credit Card",
-    details: "Card payment can be arranged manually outside the app.",
+    details: "Card payment can be arranged manually or through a Stripe payment link.",
     preferred: false,
     processingFeeEnabled: false,
     processingFeePercent: 2.9,
     processingFeeFlatAmount: 0.3,
+    stripePaymentLink: "",
+    stripeQrEnabled: false,
   },
   {
     id: "cash",
@@ -31,6 +33,8 @@ export const DEFAULT_PAYMENT_METHODS: PaymentInstruction[] = [
     processingFeeEnabled: false,
     processingFeePercent: 0,
     processingFeeFlatAmount: 0,
+    stripePaymentLink: "",
+    stripeQrEnabled: false,
   },
 ];
 

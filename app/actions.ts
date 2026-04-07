@@ -6,6 +6,7 @@ import { ZodError, z } from "zod";
 import { requireUser } from "@/lib/auth";
 import {
   acceptOrganizationInviteByIdForCurrentUser,
+  getOrganizationContextForUser,
   requireOrganizationContext,
   serializeBusinessProfile,
   serializeInvoice,
@@ -31,6 +32,59 @@ const inviteEmailSchema = z.string().trim().email();
 type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
+
+type LeaveWorkspaceRpcRow = {
+  ok: boolean;
+  reason: "not_member" | "last_owner" | "workspace_deleted" | null;
+  organization_id: string | null;
+  transferred_owner_email: string | null;
+};
+
+async function deleteBrandingAssetsForOrganization(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  organizationId: string,
+) {
+  const bucket = supabase.storage.from("branding-assets");
+  const folder = `${organizationId}/logo`;
+  const pathsToRemove: string[] = [];
+  let offset = 0;
+
+  while (true) {
+    const { data, error } = await bucket.list(folder, {
+      limit: 100,
+      offset,
+      sortBy: { column: "name", order: "asc" },
+    });
+
+    if (error) {
+      throw new Error(`Could not load branding assets for deletion: ${error.message}`);
+    }
+
+    const page = data ?? [];
+
+    pathsToRemove.push(
+      ...page
+        .filter((entry) => entry.id !== null)
+        .map((entry) => `${folder}/${entry.name}`),
+    );
+
+    if (page.length < 100) {
+      break;
+    }
+
+    offset += 100;
+  }
+
+  if (pathsToRemove.length === 0) {
+    return;
+  }
+
+  const { error } = await bucket.remove(pathsToRemove);
+
+  if (error) {
+    throw new Error(`Could not delete branding assets: ${error.message}`);
+  }
+}
 
 async function reserveInvoiceNumber(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
@@ -521,4 +575,73 @@ export async function acceptOrganizationInvite(
   }
 
   return result;
+}
+
+export async function leaveCurrentWorkspace(
+  options?: { destroyWorkspace?: boolean },
+): Promise<
+  | ({ ok: true; data: { transferredOwnershipToEmail: string | null } })
+  | ({ ok: false; error: string; requiresWorkspaceDeletionConfirmation?: boolean })
+> {
+  const { supabase, user } = await requireUser();
+
+  if (options?.destroyWorkspace) {
+    const context = await getOrganizationContextForUser(supabase, user);
+
+    if (!context) {
+      return {
+        ok: false,
+        error: "You are not currently an active member of a workspace.",
+      };
+    }
+
+    await deleteBrandingAssetsForOrganization(supabase, context.organization.id);
+  }
+
+  const { data, error } = await supabase.rpc("leave_current_workspace", {
+    confirm_destroy: options?.destroyWorkspace ?? false,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: error.message,
+    };
+  }
+
+  const result = (Array.isArray(data) ? data[0] : data) as LeaveWorkspaceRpcRow | null;
+
+  if (!result) {
+    return {
+      ok: false,
+      error: "Unable to leave the current workspace.",
+    };
+  }
+
+  if (result.ok) {
+    revalidatePath("/dashboard");
+    revalidatePath("/settings");
+    revalidatePath("/workspaces");
+
+    return {
+      ok: true,
+      data: {
+        transferredOwnershipToEmail: result.transferred_owner_email,
+      },
+    };
+  }
+
+  if (result.reason === "last_owner") {
+    return {
+      ok: false,
+      error:
+        "You are the only active member in this workspace. Leaving will permanently delete the workspace and all of its invoices, settings, invites, and billing profile.",
+      requiresWorkspaceDeletionConfirmation: true,
+    };
+  }
+
+  return {
+    ok: false,
+    error: "You are not currently an active member of a workspace.",
+  };
 }

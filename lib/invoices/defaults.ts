@@ -7,6 +7,7 @@ import type {
   PaymentInstruction,
   TaxLine,
 } from "@/types/domain";
+import { isCardPaymentMethod, normalizeStripePaymentLink } from "@/lib/invoices/payment-links";
 
 function newId(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
@@ -48,12 +49,19 @@ export function createPaymentInstruction(label = ""): PaymentInstruction {
     processingFeeEnabled: false,
     processingFeePercent: 0,
     processingFeeFlatAmount: 0,
+    stripePaymentLink: "",
+    stripeQrEnabled: false,
   };
 }
 
 export function normalizePaymentInstruction(
   method: Partial<PaymentInstruction> & Pick<PaymentInstruction, "id" | "label">,
 ): PaymentInstruction {
+  const isCardMethod = isCardPaymentMethod(method.label);
+  const normalizedStripePaymentLink = isCardMethod
+    ? normalizeStripePaymentLink(method.stripePaymentLink)
+    : "";
+
   return {
     id: method.id,
     label: method.label,
@@ -62,6 +70,8 @@ export function normalizePaymentInstruction(
     processingFeeEnabled: Boolean(method.processingFeeEnabled),
     processingFeePercent: normalizeNonNegativeNumber(method.processingFeePercent),
     processingFeeFlatAmount: normalizeNonNegativeNumber(method.processingFeeFlatAmount),
+    stripePaymentLink: normalizedStripePaymentLink,
+    stripeQrEnabled: isCardMethod && Boolean(method.stripeQrEnabled) && normalizedStripePaymentLink.length > 0,
   };
 }
 
