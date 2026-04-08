@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SignOutButton } from "@/components/auth/sign-out-button";
 import { LoginForm } from "@/components/auth/login-form";
 import { BrandMark } from "@/components/site/brand-mark";
 import { getOptionalSession } from "@/lib/auth";
-import { ensureOrganizationContextForUser } from "@/lib/data";
 
 function getLoginErrorMessage(error: string | undefined) {
   if (error === "auth_callback") {
@@ -20,21 +18,10 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
-  const { supabase, user } = await getOptionalSession();
-  let hasIncompleteSession = false;
+  const { user } = await getOptionalSession();
 
   if (user) {
-    try {
-      const context = await ensureOrganizationContextForUser(supabase, user);
-
-      if (context) {
-        redirect("/dashboard");
-      } else {
-        hasIncompleteSession = true;
-      }
-    } catch {
-      hasIncompleteSession = true;
-    }
+    redirect("/auth/finish");
   }
 
   return (
@@ -65,19 +52,6 @@ export default async function LoginPage({
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="card-surface px-4 py-8 sm:px-10">
           <LoginForm initialError={getLoginErrorMessage(error)} />
-          {hasIncompleteSession ? (
-            <div className="mt-6 rounded-md border border-[#fec5c3] bg-[#fff4f3] p-4">
-              <p className="text-sm font-medium text-[#8a1c08]">
-                A browser session already exists for this account.
-              </p>
-              <p className="mt-1 text-sm text-[#8a1c08]">
-                If Google sign-in failed, sign out here first and then retry.
-              </p>
-              <div className="mt-4">
-                <SignOutButton />
-              </div>
-            </div>
-          ) : null}
         </div>
         <div className="mt-4 text-center text-xs leading-6 text-[var(--muted)]">
           By continuing, you agree to the{" "}
