@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { Download, Loader2 } from "lucide-react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 
 import type { InvoiceFormState, InvoiceRecord } from "@/types/domain";
-import { InvoiceDocument } from "@/components/invoices/invoice-document";
+
+const BrowserPdfInvoiceDocument = dynamic(
+  () => import("@/components/invoices/invoice-document").then((mod) => mod.InvoiceDocument),
+  { ssr: false },
+);
 
 type DownloadPdfButtonProps = {
   invoice: InvoiceFormState | InvoiceRecord;
@@ -30,6 +33,7 @@ export function DownloadPdfButton({
   const [progress, setProgress] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const resolvedPdfHref = pdfHref ?? (invoice.id ? `/api/invoices/${invoice.id}/pdf` : undefined);
+  const needsBrowserPdfFallback = !resolvedPdfHref;
 
   useEffect(() => {
     if (!loading) {
@@ -126,6 +130,10 @@ export function DownloadPdfButton({
         await document.fonts.ready;
       }
 
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -249,13 +257,15 @@ export function DownloadPdfButton({
         ) : null}
         {error ? <p className="text-sm font-medium text-[var(--danger)]">{error}</p> : null}
       </div>
-      <div
-        className="pointer-events-none fixed left-[-300vw] top-0 z-[-1] w-[980px] bg-white"
-        data-pdf-capture-root
-        ref={containerRef}
-      >
-        <InvoiceDocument invoice={invoice} printable />
-      </div>
+      {needsBrowserPdfFallback ? (
+        <div
+          className="pointer-events-none fixed left-[-300vw] top-0 z-[-1] w-[980px] bg-white"
+          data-pdf-capture-root
+          ref={containerRef}
+        >
+          <BrowserPdfInvoiceDocument invoice={invoice} printable />
+        </div>
+      ) : null}
     </>
   );
 }
