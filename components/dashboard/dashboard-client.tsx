@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { ArrowRight, Copy, FilePlus2, Trash2, Search, MoreHorizontal } from "lucide-react";
+import { ArrowRight, Copy, FilePlus2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { deleteDraftInvoice, toggleInvoicePaidState } from "@/app/actions";

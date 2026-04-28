@@ -149,6 +149,7 @@ export function SettingsForm({
           <div className="p-5">
             {profile.logoUrl && (
               <div className="mb-6 flex items-center gap-4">
+                {/* eslint-disable-next-line @next/next/no-img-element -- Supabase logo URLs can include SVG uploads and should render exactly as stored. */}
                 <img src={profile.logoUrl} alt="Logo" className="w-16 h-16 rounded border border-[var(--border)] object-cover bg-white" />
               </div>
             )}

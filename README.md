@@ -49,8 +49,15 @@ npm run dev
 ## Verification
 
 ```bash
+npm run ci
+```
+
+Or run the checks individually:
+
+```bash
 npm run lint
-npm run test
+npm run typecheck
+npm run test:coverage
 npm run build
 ```
 
