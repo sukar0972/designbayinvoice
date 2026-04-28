@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ArrowRight, BadgeDollarSign, FileOutput, ShieldCheck, Smartphone, CheckCircle2 } from "lucide-react";
 import { redirect } from "next/navigation";
 
+import { BrandMark } from "@/components/site/brand-mark";
+import { ExampleInvoiceButton } from "@/components/site/example-invoice-button";
 import { getOptionalSession } from "@/lib/auth";
 import { ensureOrganizationContextForUser } from "@/lib/data";
 
@@ -47,9 +49,7 @@ export default async function HomePage() {
       <header className="bg-white border-b border-[var(--border)] sticky top-0 z-50">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded bg-[var(--accent)] text-white">
-              <span className="font-bold text-lg leading-none">D</span>
-            </div>
+            <BrandMark className="h-8 w-8" />
             <span className="font-semibold text-[var(--foreground)] tracking-tight">DesignBayInvoice</span>
           </div>
           <div className="flex items-center gap-3">
@@ -79,6 +79,7 @@ export default async function HomePage() {
                 Get started
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Link>
+              <ExampleInvoiceButton />
               <Link className="btn btn-secondary px-6 py-3 text-base" href="/guest">
                 Try without signing in
               </Link>

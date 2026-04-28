@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
+import { cache } from "react";
 
 import { requireUser } from "@/lib/auth";
 import { normalizeEmail } from "@/lib/organizations";
@@ -124,6 +125,28 @@ type InvoiceRow = {
   created_at: string;
   updated_at: string;
 };
+
+type DashboardInvoiceRow = Pick<
+  InvoiceRow,
+  | "id"
+  | "invoice_number"
+  | "sequence_number"
+  | "status"
+  | "currency_code"
+  | "issue_date"
+  | "due_date"
+  | "project_reference"
+  | "bill_to"
+  | "amount_paid"
+  | "subtotal_amount"
+  | "tax_amount"
+  | "total_amount"
+  | "balance_due"
+  | "issued_at"
+  | "paid_at"
+  | "created_at"
+  | "updated_at"
+>;
 
 function asArray<T>(value: unknown) {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -272,6 +295,38 @@ async function mapInvoiceRow(
   };
 
   return record;
+}
+
+function mapDashboardInvoiceRow(row: DashboardInvoiceRow): InvoiceRecord {
+  return {
+    id: row.id,
+    invoiceNumber: row.invoice_number,
+    sequenceNumber: row.sequence_number,
+    status: row.status,
+    currencyCode: row.currency_code,
+    issueDate: row.issue_date,
+    dueDate: row.due_date,
+    projectReference: row.project_reference ?? "",
+    billTo: row.bill_to as BillTo,
+    companySnapshot: {
+      companyName: "",
+      taxRegistrations: [],
+      logoUrl: null,
+    },
+    lineItems: [],
+    taxLines: [],
+    paymentMethods: [],
+    notes: "",
+    amountPaid: asNumber(row.amount_paid),
+    subtotalAmount: asNumber(row.subtotal_amount),
+    taxAmount: asNumber(row.tax_amount),
+    totalAmount: asNumber(row.total_amount),
+    balanceDue: asNumber(row.balance_due),
+    issuedAt: row.issued_at,
+    paidAt: row.paid_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 export function serializeBusinessProfile(profile: BusinessProfileForm) {
@@ -483,7 +538,7 @@ async function bootstrapOrganizationForUser(
   }
 }
 
-export async function getOrganizationContextForUser(
+export const getOrganizationContextForUser = cache(async function getOrganizationContextForUser(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
   user: User,
 ): Promise<OrganizationContext | null> {
@@ -506,9 +561,9 @@ export async function getOrganizationContextForUser(
     membership,
     profile,
   };
-}
+});
 
-export async function ensureOrganizationContextForUser(
+export const ensureOrganizationContextForUser = cache(async function ensureOrganizationContextForUser(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
   user: User,
 ): Promise<OrganizationContext | null> {
@@ -529,7 +584,7 @@ export async function ensureOrganizationContextForUser(
   }
 
   return context;
-}
+});
 
 export async function requireOrganizationContext() {
   const { supabase, user } = await requireUser();
@@ -567,22 +622,39 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
 
   const { data, error } = await supabase
     .from("invoices")
-    .select("*")
+    .select(
+      [
+        "id",
+        "invoice_number",
+        "sequence_number",
+        "status",
+        "currency_code",
+        "issue_date",
+        "due_date",
+        "project_reference",
+        "bill_to",
+        "amount_paid",
+        "subtotal_amount",
+        "tax_amount",
+        "total_amount",
+        "balance_due",
+        "issued_at",
+        "paid_at",
+        "created_at",
+        "updated_at",
+      ].join(","),
+    )
     .eq("organization_id", organization.id)
     .order("created_at", { ascending: false })
-    .returns<InvoiceRow[]>();
+    .returns<DashboardInvoiceRow[]>();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  const invoices = await Promise.all(
-    (data ?? []).map((invoice) => mapInvoiceRow(supabase, invoice)),
-  );
-
   return {
     profile,
-    invoices,
+    invoices: (data ?? []).map(mapDashboardInvoiceRow),
   };
 }
 

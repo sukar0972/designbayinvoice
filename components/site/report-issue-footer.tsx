@@ -151,6 +151,12 @@ export function ReportIssueFooter() {
               >
                 Terms and disclaimer
               </Link>
+              <Link
+                className="text-sm font-medium text-[var(--foreground)] underline-offset-4 hover:text-[var(--accent)] hover:underline"
+                href="/privacy"
+              >
+                Privacy policy
+              </Link>
               <a
                 className="text-sm font-medium text-[var(--foreground)] underline-offset-4 hover:text-[var(--accent)] hover:underline"
                 href="https://www.netlify.com/"

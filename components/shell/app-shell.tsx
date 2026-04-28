@@ -5,6 +5,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { FileText, LayoutDashboard, Settings2, Users, Menu, X } from "lucide-react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { BrandMark } from "@/components/site/brand-mark";
 
 type AppShellProps = {
   companyName?: string;
@@ -55,9 +56,7 @@ export function AppShell({
       {/* Mobile Top Bar */}
       <div className="print-shell-hidden md:hidden flex items-center justify-between p-4 bg-white border-b border-[var(--border)] sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded bg-[var(--accent)] text-white shadow-sm">
-            <span className="font-bold text-lg leading-none">D</span>
-          </div>
+          <BrandMark className="h-8 w-8" />
           <div className="min-w-0">
             <p className="truncate font-semibold tracking-tight text-[var(--foreground)]">DesignBayInvoice</p>
             <p className="truncate text-xs text-[var(--muted)]">{resolvedCompanyName}</p>
@@ -90,9 +89,7 @@ export function AppShell({
         }`}
       >
         <div className="p-4 hidden md:flex items-center gap-3 border-b border-[var(--border)] md:border-b-0 h-16 shrink-0">
-          <div className="flex h-8 w-8 items-center justify-center rounded bg-[var(--accent)] text-white shadow-sm">
-            <span className="font-bold text-lg leading-none">D</span>
-          </div>
+          <BrandMark className="h-8 w-8" />
           <div className="min-w-0">
             <p className="truncate font-semibold tracking-tight text-[var(--foreground)]">DesignBayInvoice</p>
             <p className="truncate text-xs text-[var(--muted)]">{resolvedCompanyName}</p>

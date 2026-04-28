@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "@/components/site/brand-mark";
 
 const sections = [
   {
@@ -37,9 +38,7 @@ export default function TermsPage() {
       <header className="border-b border-[var(--border)] bg-white">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded bg-[var(--accent)] text-white">
-              <span className="font-bold text-lg leading-none">D</span>
-            </div>
+            <BrandMark className="h-8 w-8" />
             <span className="font-semibold tracking-tight text-[var(--foreground)]">DesignBayInvoice</span>
           </div>
           <Link className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-strong)]" href="/">
@@ -58,6 +57,16 @@ export default function TermsPage() {
             These terms are intended to make clear that use of this site and any documents generated
             through it remains your responsibility. They are not a substitute for legal review.
           </p>
+
+          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+            <Link
+              className="font-medium text-[var(--accent)] hover:text-[var(--accent-strong)]"
+              href="/privacy"
+            >
+              Privacy policy
+            </Link>
+            <span className="text-[var(--muted)]">Review how the product handles submitted data.</span>
+          </div>
 
           <div className="mt-10 space-y-8">
             {sections.map((section) => (
