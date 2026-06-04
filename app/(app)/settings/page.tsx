@@ -1,4 +1,4 @@
-import { getSettingsSnapshot } from "@/lib/data";
+import { getSettingsSnapshot } from "@/lib/organizations/data";
 
 import { SettingsForm } from "@/components/settings/settings-form";
 

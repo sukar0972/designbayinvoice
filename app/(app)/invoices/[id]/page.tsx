@@ -1,4 +1,4 @@
-import { getInvoiceById } from "@/lib/data";
+import { getInvoiceById } from "@/lib/invoices/data";
 
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
 

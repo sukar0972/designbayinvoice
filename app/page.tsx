@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { BrandMark } from "@/components/site/brand-mark";
 import { ExampleInvoiceButton } from "@/components/site/example-invoice-button";
 import { getOptionalSession } from "@/lib/auth";
-import { ensureOrganizationContextForUser } from "@/lib/data";
+import { ensureOrganizationContextForUser } from "@/lib/organizations/data";
 
 const highlights = [
   {

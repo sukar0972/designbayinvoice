@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
-import { ensureOrganizationContextForUser, getPendingInvitesForCurrentUser } from "@/lib/data";
+import { ensureOrganizationContextForUser, getPendingInvitesForCurrentUser } from "@/lib/organizations/data";
 
 export const dynamic = "force-dynamic";
 

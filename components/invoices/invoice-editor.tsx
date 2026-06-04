@@ -14,11 +14,11 @@ import { createInvoiceDraft, deleteDraftInvoice, recordPayment, updateInvoice } 
 import { DownloadPdfButton } from "@/components/invoices/download-pdf-button";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { canDeleteInvoice, computeInvoiceTotals, formatCurrency } from "@/lib/invoices/calculations";
-import { createLineItem, createPaymentInstruction, createTaxLine } from "@/lib/invoices/defaults";
+import { createLineItem, createTaxLine } from "@/lib/invoices/defaults";
 import { buildGuestPrintHref, buildGuestPrintStorageKey } from "@/lib/invoices/guest-print";
-import { isCardPaymentMethod } from "@/lib/invoices/payment-links";
 import { STATUS_LABELS } from "@/lib/invoices/constants";
-import type { InvoiceFormState, InvoiceRecord, LineItem, PaymentInstruction, TaxLine } from "@/types/domain";
+import { PaymentMethodsEditor } from "@/components/invoices/payment-methods-editor";
+import type { InvoiceFormState, InvoiceRecord, LineItem, TaxLine } from "@/types/domain";
 
 type InvoiceEditorProps = {
   backHref?: string;
@@ -70,18 +70,6 @@ export function InvoiceEditor({
       return {
         ...current,
         taxLines: nextLines,
-      };
-    });
-  }
-
-  function updatePaymentMethod(index: number, nextValue: Partial<PaymentInstruction>) {
-    setInvoice((current) => {
-      const nextMethods = [...current.paymentMethods];
-      nextMethods[index] = { ...nextMethods[index], ...nextValue };
-
-      return {
-        ...current,
-        paymentMethods: nextMethods,
       };
     });
   }
@@ -418,145 +406,23 @@ export function InvoiceEditor({
             </div>
           </article>
 
-          <article className="card-surface overflow-hidden">
-            <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb] flex items-center justify-between">
-              <h2 className="text-base font-semibold">Payments</h2>
-              <button className="btn btn-secondary text-xs !py-1 !px-2 shadow-sm" onClick={() => updateInvoiceField("paymentMethods", [...invoice.paymentMethods, createPaymentInstruction("Manual payment")])} type="button">
-                Add method
-              </button>
-            </div>
-            <div className="p-5">
-              {invoice.paymentMethods.length === 0 ? (
-                <p className="text-sm text-[var(--muted)] text-center py-4 mb-4">No payment methods added.</p>
-              ) : (
-                <div className="space-y-4 mb-6">
-                  {invoice.paymentMethods.map((method, index) => (
-                    <div className="p-4 rounded-md border border-[var(--border)] bg-[#fafbfb]" key={method.id}>
-                      {(() => {
-                        const isCardMethod = isCardPaymentMethod(method.label);
-
-                        return (
-                          <>
-                      <div className="flex items-start gap-4">
-                        <div className="flex-1 space-y-3">
-                          <input className="field bg-white" placeholder="Method label" value={method.label} onChange={(event) => updatePaymentMethod(index, { label: event.target.value })} />
-                          <input className="field bg-white" placeholder="Instructions" value={method.details} onChange={(event) => updatePaymentMethod(index, { details: event.target.value })} />
-                          {isCardMethod ? (
-                            <>
-                              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                                <div>
-                                  <label className="field-label">Stripe payment link</label>
-                                  <input
-                                    className="field bg-white"
-                                    inputMode="url"
-                                    placeholder="https://buy.stripe.com/..."
-                                    value={method.stripePaymentLink ?? ""}
-                                    onChange={(event) =>
-                                      updatePaymentMethod(index, {
-                                        stripePaymentLink: event.target.value,
-                                      })
-                                    }
-                                  />
-                                </div>
-                                <label className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)] sm:pb-2">
-                                  <input
-                                    checked={Boolean(method.stripeQrEnabled)}
-                                    disabled={!(method.stripePaymentLink ?? "").trim()}
-                                    onChange={(event) =>
-                                      updatePaymentMethod(index, {
-                                        stripeQrEnabled: event.target.checked,
-                                      })
-                                    }
-                                    type="checkbox"
-                                  />
-                                  Show QR code
-                                </label>
-                              </div>
-                              <p className="text-xs leading-5 text-[var(--muted)]">
-                                QR codes are generated from the saved Stripe link at print time. The QR
-                                asset is not stored in your database.
-                              </p>
-                            </>
-                          ) : null}
-                          <label className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
-                            <input
-                              checked={Boolean(method.processingFeeEnabled)}
-                              onChange={(event) =>
-                                updatePaymentMethod(index, {
-                                  processingFeeEnabled: event.target.checked,
-                                })
-                              }
-                              type="checkbox"
-                            />
-                            Add a processing fee on top for this payment method
-                          </label>
-                          {method.processingFeeEnabled ? (
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <div>
-                                <label className="field-label">Fee percent</label>
-                                <input
-                                  className="field bg-white"
-                                  min="0"
-                                  placeholder="2.9"
-                                  step="0.01"
-                                  type="number"
-                                  value={method.processingFeePercent ?? 0}
-                                  onChange={(event) =>
-                                    updatePaymentMethod(index, {
-                                      processingFeePercent: Number(event.target.value),
-                                    })
-                                  }
-                                />
-                              </div>
-                              <div>
-                                <label className="field-label">Flat fee</label>
-                                <input
-                                  className="field bg-white"
-                                  min="0"
-                                  placeholder="0.30"
-                                  step="0.01"
-                                  type="number"
-                                  value={method.processingFeeFlatAmount ?? 0}
-                                  onChange={(event) =>
-                                    updatePaymentMethod(index, {
-                                      processingFeeFlatAmount: Number(event.target.value),
-                                    })
-                                  }
-                                />
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <button className={`btn text-xs !py-1.5 ${method.preferred ? "btn-primary shadow-sm" : "btn-secondary shadow-sm"}`} onClick={() => updateInvoiceField("paymentMethods", invoice.paymentMethods.map((item) => ({ ...item, preferred: item.id === method.id })))} type="button">
-                            Preferred
-                          </button>
-                          <button className="btn btn-secondary text-xs !py-1.5 text-[var(--danger)] hover:bg-[#fed3d1] hover:border-[#fed3d1] shadow-sm" onClick={() => updateInvoiceField("paymentMethods", invoice.paymentMethods.filter((item) => item.id !== method.id))} type="button">
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  ))}
+          <PaymentMethodsEditor
+            defaultLabel="Manual payment"
+            methods={invoice.paymentMethods}
+            onChange={(nextMethods) => updateInvoiceField("paymentMethods", nextMethods)}
+          >
+            {!isNew && invoice.id ? (
+              <div className="border-t border-[var(--border)] pt-5 mt-2">
+                <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Record payment</p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input className="field" min="0" placeholder="Amount received" step="0.01" type="number" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} />
+                  <button className="btn btn-primary shadow-sm whitespace-nowrap" onClick={() => startTransition(handlePaymentRecord)} type="button">
+                    Record payment
+                  </button>
                 </div>
-              )}
-
-              {!isNew && invoice.id ? (
-                <div className="border-t border-[var(--border)] pt-5 mt-2">
-                  <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Record payment</p>
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <input className="field" min="0" placeholder="Amount received" step="0.01" type="number" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} />
-                    <button className="btn btn-primary shadow-sm whitespace-nowrap" onClick={() => startTransition(handlePaymentRecord)} type="button">
-                      Record payment
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </article>
+              </div>
+            ) : null}
+          </PaymentMethodsEditor>
 
           <article className="card-surface overflow-hidden">
             <div className="px-5 py-4 border-b border-[var(--border)] bg-[#fafbfb]">

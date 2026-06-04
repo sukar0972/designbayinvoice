@@ -56,8 +56,8 @@ export function computePaymentMethodProcessingFee(
     return 0;
   }
 
-  const percentFee = baseAmount * (sanitizeMoney(method.processingFeePercent ?? 0) / 100);
-  const flatFee = sanitizeMoney(method.processingFeeFlatAmount ?? 0);
+  const percentFee = baseAmount * (sanitizeMoney(method.processingFeePercent) / 100);
+  const flatFee = sanitizeMoney(method.processingFeeFlatAmount);
 
   return sanitizeMoney(percentFee + flatFee);
 }

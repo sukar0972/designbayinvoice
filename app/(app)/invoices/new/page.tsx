@@ -1,4 +1,4 @@
-import { getNewInvoiceSeed } from "@/lib/data";
+import { getNewInvoiceSeed } from "@/lib/invoices/data";
 
 import { InvoiceEditor } from "@/components/invoices/invoice-editor";
 
