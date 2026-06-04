@@ -19,6 +19,15 @@ const stripePaymentLinkSchema = z
     }
   }, "Stripe payment link must be a valid HTTPS URL.");
 
+export const recordPaymentAmountSchema = z.coerce
+  .number()
+  .finite("Payment amount must be a valid number.")
+  .positive("Payment amount must be greater than zero.")
+  .max(9_999_999_999.99, "Payment amount is too large.")
+  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, {
+    message: "Payment amount must be in whole cents.",
+  });
+
 export const taxRegistrationSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),

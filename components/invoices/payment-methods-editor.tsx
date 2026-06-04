@@ -74,6 +74,7 @@ export function PaymentMethodsEditor({
           <div className="space-y-4 mb-6">
             {methods.map((method, index) => {
               const isCardMethod = isCardPaymentMethod(method.label);
+              const stripePaymentLink = method.stripePaymentLink ?? "";
 
               return (
                 <div
@@ -107,7 +108,7 @@ export function PaymentMethodsEditor({
                                 className="field bg-white"
                                 inputMode="url"
                                 placeholder="https://buy.stripe.com/..."
-                                value={method.stripePaymentLink}
+                                value={stripePaymentLink}
                                 onChange={(event) =>
                                   handleUpdate(index, {
                                     stripePaymentLink: event.target.value,
@@ -117,8 +118,8 @@ export function PaymentMethodsEditor({
                             </div>
                             <label className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)] sm:pb-2">
                               <input
-                                checked={method.stripeQrEnabled}
-                                disabled={!method.stripePaymentLink.trim()}
+                                checked={Boolean(method.stripeQrEnabled)}
+                                disabled={!stripePaymentLink.trim()}
                                 onChange={(event) =>
                                   handleUpdate(index, {
                                     stripeQrEnabled: event.target.checked,

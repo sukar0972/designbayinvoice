@@ -12,6 +12,7 @@ import {
 } from "@/lib/invoices/calculations";
 import { createDuplicateInvoice, createEmptyInvoice } from "@/lib/invoices/defaults";
 import { EMPTY_COMPANY_PROFILE } from "@/lib/invoices/constants";
+import { recordPaymentAmountSchema } from "@/lib/invoices/validation";
 
 describe("invoice calculations", () => {
   it("computes subtotal, tax, total, and balance", () => {
@@ -98,5 +99,13 @@ describe("invoice calculations", () => {
     expect(duplicate.sequenceNumber).toBeNull();
     expect(duplicate.status).toBe("draft");
     expect(duplicate.amountPaid).toBe(0);
+  });
+
+  it("validates recorded payment amounts", () => {
+    expect(recordPaymentAmountSchema.parse("125.25")).toBe(125.25);
+    expect(recordPaymentAmountSchema.safeParse(0).success).toBe(false);
+    expect(recordPaymentAmountSchema.safeParse(-1).success).toBe(false);
+    expect(recordPaymentAmountSchema.safeParse(Number.POSITIVE_INFINITY).success).toBe(false);
+    expect(recordPaymentAmountSchema.safeParse(12.345).success).toBe(false);
   });
 });

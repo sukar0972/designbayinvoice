@@ -25,7 +25,12 @@ import {
   buildUpdatePayload,
 } from "@/lib/invoices/mutations";
 import { formatZodError, toUserFacingError } from "@/lib/invoices/errors";
-import { businessProfileSchema, invoiceSchema } from "@/lib/invoices/validation";
+import {
+  businessProfileSchema,
+  invoiceSchema,
+  recordPaymentAmountSchema,
+} from "@/lib/invoices/validation";
+import { detectLogoImage } from "@/lib/images";
 import { normalizeEmail } from "@/lib/organizations";
 import type {
   BusinessProfileForm,
@@ -52,7 +57,6 @@ const ALLOWED_LOGO_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
-  "image/svg+xml",
 ]);
 
 async function deleteBrandingAssetsForOrganization(
@@ -165,21 +169,32 @@ export async function uploadLogo(formData: FormData) {
   }
 
   if (!ALLOWED_LOGO_TYPES.has(file.type)) {
-    return { ok: false, error: "Invalid logo format. Use PNG, JPG, WebP, or SVG." } as ActionResult<{ path: string; signedUrl: string }>;
+    return { ok: false, error: "Invalid logo format. Use PNG, JPG, or WebP." } as ActionResult<{ path: string; signedUrl: string }>;
   }
 
   if (file.size > MAX_LOGO_FILE_SIZE) {
     return { ok: false, error: "Logo file is too large. Maximum size is 2 MB." } as ActionResult<{ path: string; signedUrl: string }>;
   }
 
+  const fileBytes = new Uint8Array(await file.arrayBuffer());
+  const detectedImage = detectLogoImage(fileBytes);
+
+  if (!detectedImage) {
+    return { ok: false, error: "Invalid logo file. Upload a valid PNG, JPG, or WebP image." } as ActionResult<{ path: string; signedUrl: string }>;
+  }
+
+  if (detectedImage.mimeType !== file.type) {
+    return { ok: false, error: "Logo file type does not match the uploaded image data." } as ActionResult<{ path: string; signedUrl: string }>;
+  }
+
   const { supabase, organization, profile } = await requireOrganizationContext();
 
-  const extension = file.name.split(".").pop() ?? "png";
-  const path = `${organization.id}/logo/${crypto.randomUUID()}.${extension}`;
+  const path = `${organization.id}/logo/${crypto.randomUUID()}.${detectedImage.extension}`;
+  const verifiedFile = new Blob([fileBytes], { type: detectedImage.mimeType });
 
   const { error: uploadError } = await supabase.storage
     .from("branding-assets")
-    .upload(path, file, { upsert: true, contentType: file.type });
+    .upload(path, verifiedFile, { upsert: true, contentType: detectedImage.mimeType });
 
   if (uploadError) {
     return { ok: false, error: uploadError.message } as ActionResult<{ path: string; signedUrl: string }>;
@@ -390,6 +405,7 @@ export async function toggleInvoicePaidState(id: string, nextStatus: "issued" | 
 }
 
 export async function recordPayment(id: string, amount: number) {
+  const paymentAmount = recordPaymentAmountSchema.parse(amount);
   const { supabase, organization } = await requireOrganizationContext();
   const { data: existing, error: existingError } = await supabase
     .from("invoices")
@@ -402,7 +418,19 @@ export async function recordPayment(id: string, amount: number) {
     throw new Error(existingError.message);
   }
 
-  const mutation = buildRecordPaymentPayload(amount, existing);
+  const amountPaid = Number(existing.amount_paid);
+  const totalAmount = Number(existing.total_amount);
+  const balanceDue = totalAmount - amountPaid;
+
+  if (!Number.isFinite(amountPaid) || !Number.isFinite(totalAmount)) {
+    throw new Error("Invoice payment totals are invalid.");
+  }
+
+  if (paymentAmount > balanceDue) {
+    throw new Error("Payment amount cannot exceed the remaining balance.");
+  }
+
+  const mutation = buildRecordPaymentPayload(paymentAmount, existing);
 
   const { error } = await supabase
     .from("invoices")

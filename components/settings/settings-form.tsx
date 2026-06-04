@@ -106,7 +106,7 @@ export function SettingsForm({
               {uploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ImageUp className="h-3 w-3 mr-1" />}
               Upload Logo
               <input
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                accept="image/png,image/jpeg,image/webp"
                 className="hidden"
                 onChange={handleLogoUpload}
                 type="file"
@@ -117,7 +117,7 @@ export function SettingsForm({
           <div className="p-5">
             {profile.logoUrl && (
               <div className="mb-6 flex items-center gap-4">
-                {/* eslint-disable-next-line @next/next/no-img-element -- Supabase logo URLs can include SVG uploads and should render exactly as stored. */}
+                {/* eslint-disable-next-line @next/next/no-img-element -- Supabase signed logo URLs should render exactly as stored. */}
                 <img src={profile.logoUrl} alt="Logo" className="w-16 h-16 rounded border border-[var(--border)] object-cover bg-white" />
               </div>
             )}
