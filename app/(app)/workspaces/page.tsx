@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import {
   getOrganizationContextForUser,
   getPendingInvitesForCurrentUser,
-} from "@/lib/data";
+} from "@/lib/organizations/data";
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-CA", {

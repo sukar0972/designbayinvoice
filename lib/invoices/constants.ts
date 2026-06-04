@@ -13,6 +13,8 @@ export const DEFAULT_PAYMENT_METHODS: PaymentInstruction[] = [
     processingFeeEnabled: false,
     processingFeePercent: 0,
     processingFeeFlatAmount: 0,
+    stripePaymentLink: "",
+    stripeQrEnabled: false,
   },
   {
     id: "card",

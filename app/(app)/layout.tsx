@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/shell/app-shell";
 import { requireUser } from "@/lib/auth";
-import { getOrganizationContextForUser } from "@/lib/data";
+import { getOrganizationContextForUser } from "@/lib/organizations/data";
 
 export const dynamic = "force-dynamic";
 

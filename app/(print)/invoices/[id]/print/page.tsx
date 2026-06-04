@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth";
-import { getInvoiceById } from "@/lib/data";
+import { getInvoiceById } from "@/lib/invoices/data";
 
 import { AutoPrint } from "@/components/invoices/auto-print";
 import { InvoiceDocument } from "@/components/invoices/invoice-document";

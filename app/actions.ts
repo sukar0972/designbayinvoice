@@ -4,19 +4,26 @@ import { revalidatePath } from "next/cache";
 import { ZodError, z } from "zod";
 
 import { requireUser } from "@/lib/auth";
+import { serializeBusinessProfile } from "@/lib/business-profiles/data";
 import {
   acceptOrganizationInviteByIdForCurrentUser,
   getOrganizationContextForUser,
   requireOrganizationContext,
-  serializeBusinessProfile,
-  serializeInvoice,
-} from "@/lib/data";
+} from "@/lib/organizations/data";
+import { serializeInvoice } from "@/lib/invoices/data";
+import { getInvoiceById } from "@/lib/invoices/data";
 import {
   canDeleteInvoice,
   canTransitionStatus,
-  computeInvoiceTotals,
-  deriveInvoiceStatus,
 } from "@/lib/invoices/calculations";
+import {
+  buildCreatePayload,
+  buildDuplicatePayload,
+  buildRecordPaymentPayload,
+  buildStatusTransitionPayload,
+  buildTogglePaidPayload,
+  buildUpdatePayload,
+} from "@/lib/invoices/mutations";
 import { formatZodError, toUserFacingError } from "@/lib/invoices/errors";
 import { businessProfileSchema, invoiceSchema } from "@/lib/invoices/validation";
 import { normalizeEmail } from "@/lib/organizations";
@@ -39,6 +46,14 @@ type LeaveWorkspaceRpcRow = {
   organization_id: string | null;
   transferred_owner_email: string | null;
 };
+
+const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/svg+xml",
+]);
 
 async function deleteBrandingAssetsForOrganization(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
@@ -142,28 +157,63 @@ export async function saveBusinessProfile(input: BusinessProfileForm) {
   revalidatePath("/invoices/new");
 }
 
+export async function uploadLogo(formData: FormData) {
+  const file = formData.get("logo") as File | null;
+
+  if (!file) {
+    return { ok: false, error: "No file provided." } as ActionResult<{ path: string; signedUrl: string }>;
+  }
+
+  if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+    return { ok: false, error: "Invalid logo format. Use PNG, JPG, WebP, or SVG." } as ActionResult<{ path: string; signedUrl: string }>;
+  }
+
+  if (file.size > MAX_LOGO_FILE_SIZE) {
+    return { ok: false, error: "Logo file is too large. Maximum size is 2 MB." } as ActionResult<{ path: string; signedUrl: string }>;
+  }
+
+  const { supabase, organization, profile } = await requireOrganizationContext();
+
+  const extension = file.name.split(".").pop() ?? "png";
+  const path = `${organization.id}/logo/${crypto.randomUUID()}.${extension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("branding-assets")
+    .upload(path, file, { upsert: true, contentType: file.type });
+
+  if (uploadError) {
+    return { ok: false, error: uploadError.message } as ActionResult<{ path: string; signedUrl: string }>;
+  }
+
+  const { data } = await supabase.storage
+    .from("branding-assets")
+    .createSignedUrl(path, 60 * 60);
+
+  const signedUrl = data?.signedUrl ?? null;
+
+  // Remove old logo if present
+  if (profile.logoPath) {
+    await supabase.storage.from("branding-assets").remove([profile.logoPath]);
+  }
+
+  return {
+    ok: true,
+    data: { path, signedUrl: signedUrl ?? "" },
+  } as ActionResult<{ path: string; signedUrl: string }>;
+}
+
 export async function createInvoiceDraft(input: InvoiceFormState) {
   try {
     const invoice = invoiceSchema.parse(input);
     const { supabase, organization } = await requireOrganizationContext();
 
     const reservation = await reserveInvoiceNumber(supabase);
-    const status = deriveInvoiceStatus(
-      invoice.status,
-      invoice.amountPaid,
-      computeInvoiceTotals(invoice).totalAmount,
-    );
+    const mutation = buildCreatePayload(invoice, reservation);
 
     const payload = {
       organization_id: organization.id,
-      invoice_number: reservation.invoiceNumber,
-      sequence_number: reservation.sequenceNumber,
-      ...serializeInvoice({
-        ...invoice,
-        status,
-      }),
-      issued_at: status === "draft" ? null : new Date().toISOString(),
-      paid_at: status === "paid" ? new Date().toISOString() : null,
+      ...serializeInvoice(invoice),
+      ...mutation,
     };
 
     const { data, error } = await supabase
@@ -209,19 +259,13 @@ export async function updateInvoice(input: InvoiceFormState & { id: string }) {
       throw new Error(existingError.message);
     }
 
-    const totals = computeInvoiceTotals(invoice);
-    const status = deriveInvoiceStatus(invoice.status, invoice.amountPaid, totals.totalAmount);
+    const mutation = buildUpdatePayload(invoice, existing);
 
     const { error } = await supabase
       .from("invoices")
       .update({
-        ...serializeInvoice({
-          ...invoice,
-          status,
-        }),
-        issued_at:
-          existing.issued_at ?? (status === "draft" ? null : new Date().toISOString()),
-        paid_at: status === "paid" ? existing.paid_at ?? new Date().toISOString() : null,
+        ...serializeInvoice(invoice),
+        ...mutation,
       })
       .eq("organization_id", organization.id)
       .eq("id", invoice.id);
@@ -248,36 +292,22 @@ export async function updateInvoice(input: InvoiceFormState & { id: string }) {
 
 export async function duplicateInvoice(id: string) {
   const { supabase, organization } = await requireOrganizationContext();
-  const { data: source, error: sourceError } = await supabase
-    .from("invoices")
-    .select("*")
-    .eq("organization_id", organization.id)
-    .eq("id", id)
-    .single();
 
-  if (sourceError) {
-    throw new Error(sourceError.message);
-  }
-
+  const source = await getInvoiceById(id);
   const reservation = await reserveInvoiceNumber(supabase);
-  const cloned = {
-    ...source,
-    id: undefined,
-    organization_id: organization.id,
-    invoice_number: reservation.invoiceNumber,
-    sequence_number: reservation.sequenceNumber,
-    status: "draft",
-    amount_paid: 0,
-    balance_due: source.total_amount,
-    issued_at: null,
-    paid_at: null,
-    created_at: undefined,
-    updated_at: undefined,
-  };
+
+  const duplicate = buildDuplicatePayload(source, reservation);
 
   const { data, error } = await supabase
     .from("invoices")
-    .insert(cloned)
+    .insert({
+      organization_id: organization.id,
+      ...serializeInvoice(duplicate),
+      invoice_number: reservation.invoiceNumber,
+      sequence_number: reservation.sequenceNumber,
+      issued_at: null,
+      paid_at: null,
+    })
     .select("id")
     .single<{ id: string }>();
 
@@ -309,13 +339,11 @@ export async function transitionInvoiceStatus(id: string, nextStatus: InvoiceSta
     throw new Error(`Cannot move invoice from ${existing.status} to ${nextStatus}.`);
   }
 
+  const mutation = buildStatusTransitionPayload(nextStatus, existing);
+
   const { error } = await supabase
     .from("invoices")
-    .update({
-      status: deriveInvoiceStatus(nextStatus, Number(existing.amount_paid), Number(existing.total_amount)),
-      issued_at: nextStatus === "draft" ? null : new Date().toISOString(),
-      paid_at: nextStatus === "paid" ? new Date().toISOString() : null,
-    })
+    .update(mutation)
     .eq("organization_id", organization.id)
     .eq("id", id);
 
@@ -344,19 +372,11 @@ export async function toggleInvoicePaidState(id: string, nextStatus: "issued" | 
     throw new Error("Only issued or paid invoices can be toggled from the dashboard.");
   }
 
-  const totalAmount = Number(existing.total_amount);
-  const nextAmountPaid = nextStatus === "paid" ? totalAmount : 0;
-  const nextBalanceDue = nextStatus === "paid" ? 0 : totalAmount;
+  const mutation = buildTogglePaidPayload(nextStatus, existing);
 
   const { error } = await supabase
     .from("invoices")
-    .update({
-      status: nextStatus,
-      amount_paid: nextAmountPaid,
-      balance_due: nextBalanceDue,
-      issued_at: existing.issued_at ?? new Date().toISOString(),
-      paid_at: nextStatus === "paid" ? new Date().toISOString() : null,
-    })
+    .update(mutation)
     .eq("organization_id", organization.id)
     .eq("id", id);
 
@@ -382,18 +402,11 @@ export async function recordPayment(id: string, amount: number) {
     throw new Error(existingError.message);
   }
 
-  const nextPaid = Number(existing.amount_paid) + amount;
-  const totalAmount = Number(existing.total_amount);
-  const status = deriveInvoiceStatus("issued", nextPaid, totalAmount);
+  const mutation = buildRecordPaymentPayload(amount, existing);
 
   const { error } = await supabase
     .from("invoices")
-    .update({
-      amount_paid: nextPaid,
-      balance_due: Math.max(totalAmount - nextPaid, 0),
-      status,
-      paid_at: status === "paid" ? new Date().toISOString() : null,
-    })
+    .update(mutation)
     .eq("organization_id", organization.id)
     .eq("id", id);
 

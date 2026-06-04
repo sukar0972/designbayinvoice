@@ -67,6 +67,8 @@ describe("invoice calculations", () => {
       processingFeeEnabled: true,
       processingFeePercent: 2.9,
       processingFeeFlatAmount: 0.3,
+      stripePaymentLink: "",
+      stripeQrEnabled: false,
     };
 
     expect(computePaymentMethodProcessingFee(invoice, cardMethod)).toBe(29.3);

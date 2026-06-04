@@ -41,11 +41,11 @@ export type PaymentInstruction = {
   label: string;
   details: string;
   preferred: boolean;
-  processingFeeEnabled?: boolean;
-  processingFeePercent?: number;
-  processingFeeFlatAmount?: number;
-  stripePaymentLink?: string;
-  stripeQrEnabled?: boolean;
+  processingFeeEnabled: boolean;
+  processingFeePercent: number;
+  processingFeeFlatAmount: number;
+  stripePaymentLink: string;
+  stripeQrEnabled: boolean;
 };
 
 export type BillTo = {
